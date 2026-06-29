@@ -1,0 +1,10 @@
+{
+  "title": "Electron Pulse Lines",
+  "slug": "electron-lines",
+  "order": 5,
+  "sourceUrl": "https://schematichq.com/",
+  "sourceName": "Schematic & Portkey",
+  "credit": "Schematic HQ / Portkey",
+  "blurb": "Bright electron pulses race along circuit-board Bézier paths between glowing connected nodes.",
+  "technique": "The scene is an SVG `viewBox=\"0 0 900 600\"` containing a central hub node surrounded by eight peripheral nodes. Each peripheral node is a rounded `<rect>` with a thin outer ring; the hub has two concentric border rings and four cyan corner-accent dots. Twelve `<path>` elements using cubic Bézier curves fan out from the hub to each peripheral node and form a partial outer ring, drawn as faint `#163a58` strokes to suggest dim, unpowered circuit traces. A second wide-blurred copy of each path sits underneath for a soft ambient glow.\n\nEach electron pulse is a `<g filter=\"url(#f-pulse)\">` containing four concentric `<circle>` elements: a main bright white dot (`r 4.3`, fill `#dff6ff`) plus three trailing circles at path offsets of 6, 12, and 20 units, decreasing in radius and opacity. The glow filter layers two `feGaussianBlur` passes (stdDeviation 7 and 3) merged with the source, producing a cyan bloom without a separate `<canvas>`. Position is computed every frame via `getPointAtLength(pos)` on the crisp `<path>` element — no trigonometry required.\n\nSixteen pulses are defined across the twelve paths, some bidirectional. Each has an independent `delay` (0–3 900 ms) so they are visually desynchronised on load and appear to represent independent data packets. When a pulse wraps past the end of its path it resets to the origin and calls `flashNode()`, which momentarily brightens the destination node's stroke to `#38bdf8` and applies a `feGaussianBlur` glow filter, then restores it after 380 ms via `setTimeout`.\n\nThe entire loop runs inside a single `requestAnimationFrame` callback with no `setInterval`; frame deltas are capped at 50 ms so a backgrounded tab resumes gracefully rather than jumping. All 16 pulses share one RAF loop, keeping CPU use minimal and preventing timer drift or accumulating closures."
+}

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sneakers Text Decode</title>
+  <style>
+    /* ─── Reset & base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #0a0c0f;
+      color: #4ade80;           /* terminal green */
+      font-family: "Courier New", Courier, "Lucida Console", monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ─── Stage ─── */
+    #stage {
+      position: relative;
+      text-align: center;
+      padding: 2rem;
+      user-select: none;
+    }
+
+    /* ─── The main text element ─── */
+    #scramble-target {
+      font-size: clamp(1.6rem, 5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      line-height: 1.2;
+      /* Glow – layered text-shadow for authentic CRT look */
+      text-shadow:
+        0 0 4px  #4ade80,
+        0 0 10px #4ade80,
+        0 0 22px #22c55e,
+        0 0 40px #16a34a;
+      white-space: pre;        /* keep spaces/newlines if used */
+      min-height: 1.3em;       /* prevent layout jump while empty */
+    }
+
+    /* ─── Subtle scanline overlay (CRT effect) ─── */
+    #stage::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.06) 2px,
+        rgba(0, 0, 0, 0.06) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* ─── Reduced-motion: skip all animation, show plain text ─── */
+    @media (prefers-reduced-motion: reduce) {
+      #scramble-target {
+        text-shadow: none;
+        color: #4ade80;
+      }
+      #stage::after { display: none; }
+    }
+
+    /* ─── Optional: dim cursor blink below the text ─── */
+    #cursor {
+      display: inline-block;
+      margin-top: 1.2rem;
+      width: 0.55em;
+      height: 1.1em;
+      background: #4ade80;
+      box-shadow: 0 0 8px #4ade80;
+      vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { #cursor { animation: none; } }
+  </style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="scramble-target"></div>
+  <div><span id="cursor"></span></div>
+</div>
+
+<script>
+  /*
+   * ═══════════════════════════════════════════════════════════════
+   *  TextScramble — reusable Sneakers-movie text-decode class
+   * ───────────────────────────────────────────────────────────────
+   *  Usage:
+   *    const fx = new TextScramble(element);
+   *    fx.setText("HELLO WORLD").then(() => { ... });
+   *
+   *  Each character cycles through random glyphs on every rAF tick.
+   *  A per-character counter ("resolve index") increments staggered
+   *  so characters lock from left to right.
+   * ═══════════════════════════════════════════════════════════════
+   */
+  class TextScramble {
+    /**
+     * @param {HTMLElement} el  – the element whose textContent we animate
+     * @param {object}      [opts]
+     * @param {string}      [opts.charset]    – pool of glyphs to sample from
+     * @param {number}      [opts.speed]      – rAF ticks per character resolve step (lower = faster)
+     * @param {number}      [opts.stagger]    – ticks between each char starting to lock
+     */
+    constructor(el, opts = {}) {
+      this.el = el;
+
+      // Glyph pool: alphanumeric + punctuation that reads as "cyber noise"
+      this.charset = opts.charset ??
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*<>?/\\|{}[]~-=+_";
+
+      // How many rAF frames we spend randomly cycling before locking a char.
+      // Larger = more chaotic scramble per character.
+      this.speed   = opts.speed   ?? 3;   // ticks a char scrambles before lock
+      this.stagger = opts.stagger ?? 2;   // ticks between adjacent chars locking
+
+      this._frameId  = null;   // rAF handle for cleanup
+      this._resolve  = null;   // Promise resolver, set in setText()
+    }
+
+    /** Pick a random glyph from the pool */
+    _rand() {
+      return this.charset[Math.floor(Math.random() * this.charset.length)];
+    }
+
+    /**
+     * Animate el's text from gibberish → target string.
+     * @param  {string}  text   – the final text to reveal
+     * @returns {Promise<void>}  – resolves when every character has locked
+     */
+    setText(text) {
+      // Cancel any in-flight animation
+      if (this._frameId !== null) {
+        cancelAnimationFrame(this._frameId);
+        this._frameId = null;
+      }
+      if (this._resolve) {
+        this._resolve();        // resolve the previous promise immediately
+        this._resolve = null;
+      }
+
+      return new Promise((resolve) => {
+        this._resolve = resolve;
+
+        const chars = text.split("");   // target characters
+        const len   = chars.length;
+
+        /*
+         * State per character:
+         *   locked  – boolean: has this char settled into its final glyph?
+         *   tick    – frame counter; when tick reaches `speed`, we check whether
+         *             it's time for this char to lock (based on its index × stagger)
+         */
+        const locked = new Array(len).fill(false);
+        const ticks  = new Array(len).fill(0);
+
+        // How many total ticks before the last character locks
+        const totalTicks = len * this.stagger + this.speed;
+        let   elapsed    = 0;
+
+        const frame = () => {
+          elapsed++;
+
+          // Build the output string for this frame
+          let output = "";
+          let allDone = true;
+
+          for (let i = 0; i < len; i++) {
+            const ch = chars[i];
+
+            // Preserve spaces and newlines without scrambling
+            if (ch === " " || ch === "\n") {
+              output += ch;
+              continue;
+            }
+
+            if (locked[i]) {
+              // Already settled — show the real character
+              output += ch;
+              continue;
+            }
+
+            // Should this char lock now?
+            if (elapsed >= i * this.stagger + this.speed) {
+              locked[i] = true;
+              output += ch;
+              continue;
+            }
+
+            // Still scrambling — show a random glyph
+            allDone  = false;
+            output  += this._rand();
+          }
+
+          this.el.textContent = output;
+
+          if (allDone || elapsed > totalTicks + 10) {
+            // Make absolutely sure we end on the real text
+            this.el.textContent = text;
+            this._frameId = null;
+            const cb = this._resolve;
+            this._resolve = null;
+            cb();
+          } else {
+            this._frameId = requestAnimationFrame(frame);
+          }
+        };
+
+        this._frameId = requestAnimationFrame(frame);
+      });
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────────
+   *  Demo loop — cycles through phrases with hold + transition
+   * ────────────────────────────────────────────────────────────── */
+
+  const phrases = [
+    "SECRETS MANAGED",
+    "ACCESS GRANTED",
+    "DECRYPTING...",
+    "VAULT UNLOCKED",
+    "THE QUIETER YOU BECOME",
+    "THE MORE YOU CAN HEAR",
+    "ZERO KNOWLEDGE",
+    "END-TO-END ENCRYPTED",
+  ];
+
+  const HOLD_MS   = 1600;   // how long to display readable text before next phrase
+  const DELAY_MS  = 200;    // brief pause between phrases
+
+  const el = document.getElementById("scramble-target");
+  const fx = new TextScramble(el);
+
+  // ── Reduced-motion short-circuit ──────────────────────────────
+  // If the user has asked for reduced motion, simply cycle through
+  // phrases instantly with no scramble animation.
+  const prefersReducedMotion =
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (prefersReducedMotion) {
+    // Plain, no-animation rotation
+    let idx = 0;
+    const rotatePlain = () => {
+      el.textContent = phrases[idx];
+      idx = (idx + 1) % phrases.length;
+    };
+    rotatePlain();
+    setInterval(rotatePlain, HOLD_MS + DELAY_MS);
+
+  } else {
+    // Full scramble loop
+    let idx = 0;
+
+    const next = () => {
+      const phrase = phrases[idx];
+      idx = (idx + 1) % phrases.length;
+
+      fx.setText(phrase).then(() => {
+        // Hold the readable text for a moment
+        setTimeout(() => {
+          // Tiny delay, then decode next phrase
+          setTimeout(next, DELAY_MS);
+        }, HOLD_MS);
+      });
+    };
+
+    next();   // kick off the loop
+  }
+</script>
+</body>
+</html>

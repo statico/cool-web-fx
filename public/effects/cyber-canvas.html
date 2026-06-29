@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cyber Canvas</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #05070a;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+/* ================================================================
+   Cyber Canvas
+   Animated node/line constellation with parallax on a dark field.
+   Inspired by the ChatGPT /cyber hero background.
+   ================================================================ */
+(function () {
+  'use strict';
+
+  // ── palette & tuning ──────────────────────────────────────────
+  const BG          = '#05070a';
+  const CYAN        = [94, 234, 212];  // #5eead4 – node glow
+  const BLUE        = [56, 189, 248];  // #38bdf8 – lines & grid
+  const MAX_NODES   = 120;
+  const CONN_DIST   = 165;    // connection threshold, logical px
+  const BASE_SPEED  = 0.18;   // px/tick at 60 fps
+  const PARALLAX_PX = 22;     // max parallax offset at screen edge
+
+  // ── canvas & context ──────────────────────────────────────────
+  const canvas = document.getElementById('c');
+  const ctx    = canvas.getContext('2d');
+  if (!ctx) {
+    document.body.style.cssText = 'color:#fff;padding:2rem;font-family:system-ui';
+    document.body.textContent   = 'Canvas 2D is not supported in this browser.';
+    return;
+  }
+
+  let W, H, dpr;
+  let nodes     = [];
+  let mouseRaw  = { x: 0, y: 0 };  // raw mouse coords
+  let mouseSmth = { x: 0, y: 0 };  // smoothed for parallax
+  let lastT     = 0;                // previous frame timestamp
+
+  // ── resize – reset canvas dimensions and repopulate nodes ─────
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W   = window.innerWidth;
+    H   = window.innerHeight;
+    canvas.width        = Math.round(W * dpr);
+    canvas.height       = Math.round(H * dpr);
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);          // ctx transform resets on dimension change
+    initNodes();
+  }
+
+  // ── populate nodes ────────────────────────────────────────────
+  function initNodes() {
+    // Scale count with area; floor/ceil to keep it lively on small screens
+    const count = Math.min(MAX_NODES, Math.max(40, Math.floor(W * H / 9000)));
+    nodes = [];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = BASE_SPEED * (0.4 + Math.random() * 0.6);
+      nodes.push({
+        x:     Math.random() * W,
+        y:     Math.random() * H,
+        vx:    Math.cos(angle) * speed,
+        vy:    Math.sin(angle) * speed,
+        r:     0.5 + Math.random() * 1.2,         // core radius
+        depth: 0.3 + Math.random() * 0.7,         // parallax depth (0.3–1)
+        phase: Math.random() * Math.PI * 2,        // glow pulse phase
+      });
+    }
+  }
+
+  // ── subtle perspective grid ───────────────────────────────────
+  // Vanishing-point ray lines + compressed horizontal cross-lines
+  function drawGrid() {
+    const vpx = W * 0.5;
+    const vpy = H * 0.52;  // horizon sits just below centre
+
+    ctx.save();
+    ctx.strokeStyle = `rgba(${BLUE.join(',')},1)`;
+    ctx.lineWidth   = 0.5;
+
+    // Radial floor lines
+    ctx.globalAlpha = 0.055;
+    const RAY_N  = 20;
+    const A_MIN  = Math.PI * 0.06;
+    const A_MAX  = Math.PI * 0.94;
+    const rayLen = Math.hypot(W, H) * 1.5;
+    for (let i = 0; i <= RAY_N; i++) {
+      const a = A_MIN + (i / RAY_N) * (A_MAX - A_MIN);
+      ctx.beginPath();
+      ctx.moveTo(vpx, vpy);
+      ctx.lineTo(vpx + Math.cos(a) * rayLen, vpy + Math.sin(a) * rayLen);
+      ctx.stroke();
+    }
+
+    // Horizontal cross-lines below the horizon (power-law spacing)
+    ctx.globalAlpha = 0.045;
+    const H_LINES = 10;
+    for (let i = 1; i <= H_LINES; i++) {
+      const t = Math.pow(i / H_LINES, 1.7);  // compress toward horizon
+      const y = vpy + (H - vpy) * t;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // ── scanlines overlay ─────────────────────────────────────────
+  // 1 px black band every 4 px at low alpha for CRT texture
+  function drawScanlines() {
+    ctx.save();
+    ctx.globalAlpha = 0.028;
+    ctx.fillStyle   = '#000';
+    for (let y = 0; y < H; y += 4) {
+      ctx.fillRect(0, y, W, 1);
+    }
+    ctx.restore();
+  }
+
+  // ── render loop ───────────────────────────────────────────────
+  function draw(t) {
+    requestAnimationFrame(draw);
+
+    // Time delta – cap to 3 ticks so tabs waking from sleep don't jump
+    const dt = Math.min((t - lastT) / 16.667, 3);
+    lastT = t;
+
+    // ── clear ────────────────────────────────────────────────────
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, W, H);
+
+    // Soft radial vignette darkening the edges
+    const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.88);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,3,10,0.62)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid();
+
+    // ── smooth parallax ──────────────────────────────────────────
+    // Exponential ease toward the raw mouse position
+    mouseSmth.x += (mouseRaw.x - mouseSmth.x) * 0.06;
+    mouseSmth.y += (mouseRaw.y - mouseSmth.y) * 0.06;
+    const ox = (mouseSmth.x / W - 0.5) * PARALLAX_PX;
+    const oy = (mouseSmth.y / H - 0.5) * PARALLAX_PX;
+
+    // ── update positions (wrap at edges with gutter) ─────────────
+    const G = 40;
+    for (const n of nodes) {
+      n.x    += n.vx * dt;
+      n.y    += n.vy * dt;
+      n.phase += 0.018 * dt;  // glow pulse
+      if (n.x < -G)      n.x = W + G;
+      else if (n.x > W + G) n.x = -G;
+      if (n.y < -G)      n.y = H + G;
+      else if (n.y > H + G) n.y = -G;
+    }
+
+    // ── connecting lines (O(n²) but n ≤ 120, fast enough) ────────
+    const CD2 = CONN_DIST * CONN_DIST;
+    ctx.lineWidth = 0.65;
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const a  = nodes[i];
+      const ax = a.x + ox * a.depth;
+      const ay = a.y + oy * a.depth;
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b  = nodes[j];
+        const bx = b.x + ox * b.depth;
+        const by = b.y + oy * b.depth;
+        const dx = ax - bx;
+        const dy = ay - by;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < CD2) {
+          // Alpha fades linearly from 0.42 at zero distance to 0 at threshold
+          const alpha = (1 - Math.sqrt(d2) / CONN_DIST) * 0.42;
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(${BLUE.join(',')},${alpha.toFixed(3)})`;
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // ── node glows + cores ───────────────────────────────────────
+    for (const n of nodes) {
+      const nx          = n.x + ox * n.depth;
+      const ny          = n.y + oy * n.depth;
+      const pulseScale  = 1 + Math.sin(n.phase) * 0.22;  // subtle breathing
+      const glowR       = n.r * 9 * pulseScale;
+
+      // Soft radial glow (cyan halo)
+      const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, glowR);
+      g.addColorStop(0,   `rgba(${CYAN.join(',')},0.38)`);
+      g.addColorStop(0.4, `rgba(${CYAN.join(',')},0.10)`);
+      g.addColorStop(1,   `rgba(${CYAN.join(',')},0)`);
+      ctx.beginPath();
+      ctx.arc(nx, ny, glowR, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // Bright centre dot
+      ctx.beginPath();
+      ctx.arc(nx, ny, n.r * pulseScale * 0.75, 0, Math.PI * 2);
+      ctx.fillStyle = '#ddfaff';
+      ctx.fill();
+    }
+
+    drawScanlines();
+  }
+
+  // ── event wiring ──────────────────────────────────────────────
+  window.addEventListener('resize',    resize,                     { passive: true });
+  window.addEventListener('mousemove', function (e) {
+    mouseRaw.x = e.clientX;
+    mouseRaw.y = e.clientY;
+  }, { passive: true });
+
+  // Seed smoothed mouse at centre so the first frame has no offset jump
+  mouseRaw.x  = mouseSmth.x = window.innerWidth  / 2;
+  mouseRaw.y  = mouseSmth.y = window.innerHeight / 2;
+
+  // ── bootstrap ─────────────────────────────────────────────────
+  resize();
+  requestAnimationFrame(draw);
+
+}());
+</script>
+</body>
+</html>

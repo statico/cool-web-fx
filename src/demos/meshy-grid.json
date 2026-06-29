@@ -1,0 +1,10 @@
+{
+  "title": "Lighting, Dust & Grid",
+  "slug": "meshy-grid",
+  "order": 2,
+  "sourceUrl": "https://www.meshy.ai/",
+  "sourceName": "Meshy — 3D, On Command",
+  "credit": "Meshy",
+  "blurb": "A cinematic dark scene with a glowing perspective grid, volumetric light bloom, and drifting dust motes.",
+  "technique": "The **perspective floor grid** uses single-point perspective projection: each world-space point `(wx, wz)` maps to screen space via `screenX = vpX + wx * (focalLen / wz)` and `screenY = horizonY + camY * (focalLen / wz)`, where `vpX` is the vanishing-point X and `camY` is the camera's eye height above the floor. Longitudinal lines run from a near Z to a far Z and converge at the vanishing point; lateral cross-lines are spaced with a quadratic depth bias so they bunch naturally near the horizon. A small `scrollOffset` derived from elapsed time shifts the lateral lines continuously, creating the illusion of the viewer moving forward.\n\nThe **volumetric light bloom** is a pure CSS layer (`#bloom`) that sits behind the canvas and is composed of three overlapping `radial-gradient` ellipses in indigo (`#6366f1`), violet (`#8b5cf6`), and cyan (`#22d3ee`), each fading to transparent. Using CSS rather than a Canvas fill means it costs zero raster work per frame while still looking like a soft light source flooding in from above.\n\n**Dust motes** are rendered as Canvas 2D radial gradients: each particle gets a tiny `createRadialGradient` that fades from a tinted centre to transparent over ~3.5× its core radius, giving a soft glowing halo. Each mote carries a `depth` value (0–1) that controls radius, opacity, and speed — near motes are larger, brighter, and faster, producing natural parallax. A `phase` offset drives a slow sinusoidal alpha pulse on each mote independently.\n\nThe `requestAnimationFrame` loop caps `dt` at 50 ms to prevent physics explosions after tab-sleep, clamps `devicePixelRatio` to 2 to limit raster memory, and caps the mote count at 160. When a mote leaves the viewport it is respawned at the bottom edge so the density stays constant without ever allocating new objects."
+}

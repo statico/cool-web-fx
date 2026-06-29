@@ -1,0 +1,482 @@
+<!doctype html>
+<!--
+  Electron Pulse Lines
+  ─────────────────────────────────────────────────────────────────────────────
+  Circuit-board connection diagram: a central hub node surrounded by eight
+  peripheral nodes, connected by smooth cubic-Bézier paths. Bright "electron"
+  pulses race along every path using getPointAtLength() driven by
+  requestAnimationFrame. A layered feGaussianBlur SVG filter creates the cyan
+  glow. Sixteen staggered, bidirectional pulses loop forever with no memory leak.
+
+  Completely standalone — no CDN, no web fonts, no external assets.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electron Pulse Lines</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0c12; /* same as SVG background → letterbox bars invisible */
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <!-- ─── SVG canvas (900 × 600 virtual coordinate space) ─────────────── -->
+  <svg id="scene"
+       viewBox="0 0 900 600"
+       xmlns="http://www.w3.org/2000/svg"
+       preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <!-- ── Electron glow: two blur radii merged with the crisp source ── -->
+      <filter id="f-pulse" x="-300%" y="-300%" width="700%" height="700%">
+        <feGaussianBlur stdDeviation="7" in="SourceGraphic" result="wide"/>
+        <feGaussianBlur stdDeviation="3" in="SourceGraphic" result="narrow"/>
+        <feMerge>
+          <feMergeNode in="wide"/>
+          <feMergeNode in="narrow"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+
+      <!-- ── Node arrival flash glow ────────────────────────────────────── -->
+      <filter id="f-node" x="-120%" y="-120%" width="340%" height="340%">
+        <feGaussianBlur stdDeviation="9" in="SourceGraphic" result="b"/>
+        <feMerge>
+          <feMergeNode in="b"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+
+      <!-- ── Soft ambient glow for dim base paths ───────────────────────── -->
+      <filter id="f-path" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="1.8" in="SourceGraphic" result="b"/>
+        <feMerge>
+          <feMergeNode in="b"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+
+    <!-- Layers (bottom → top) -->
+    <g id="layer-grid"></g>    <!-- subtle dot grid -->
+    <g id="layer-paths"></g>   <!-- dim circuit traces -->
+    <g id="layer-nodes"></g>   <!-- node boxes and labels -->
+    <g id="layer-pulses"></g>  <!-- bright traveling pulses -->
+  </svg>
+
+  <script>
+  /* ====================================================================
+     Electron Pulse Lines — animation engine
+     ====================================================================
+
+     Architecture
+     ────────────
+     1. A dot-grid background is generated purely in JS (no raster image).
+     2. CONNECTIONS defines 12 cubic-Bézier paths as SVG `d` strings.
+        Each path is drawn twice: once as a wide blurred ambient layer,
+        once as a crisp dim stroke on top.
+     3. NODES describes 9 nodes. The central hub gets a double border;
+        peripheral nodes get a thin outer ring.
+     4. PULSE_DEFS creates 16 pulse objects — each one a `<g>` holding
+        a main dot and three trailing circles, wrapped in the glow filter.
+     5. A single requestAnimationFrame loop advances each pulse's position
+        along its path using `getPointAtLength(pos)`, wrapping at the ends
+        and flashing the destination node on every arrival.
+  ==================================================================== */
+  (function () {
+    'use strict';
+
+    const NS = 'http://www.w3.org/2000/svg';
+
+    /* ── SVG element factory ─────────────────────────────────────────── */
+    function mk(tag, attrs) {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+      return e;
+    }
+
+    /* ── Layer references ────────────────────────────────────────────── */
+    const layerGrid   = document.getElementById('layer-grid');
+    const layerPaths  = document.getElementById('layer-paths');
+    const layerNodes  = document.getElementById('layer-nodes');
+    const layerPulses = document.getElementById('layer-pulses');
+
+    /* ── 1. Dot grid background (very subtle) ───────────────────────── */
+    // 22 × 15 = 330 dots; rendered as tiny SVG circles, opacity controlled
+    // on the group element defined in HTML.
+    const gridGroup = mk('g', { opacity: '0.07' });
+    for (let x = 30; x < 900; x += 40) {
+      for (let y = 30; y < 600; y += 40) {
+        gridGroup.appendChild(mk('circle', { cx: x, cy: y, r: '1', fill: '#38bdf8' }));
+      }
+    }
+    layerGrid.appendChild(gridGroup);
+
+    /* ── 2. Connection path definitions ─────────────────────────────── */
+    // All 12 paths use cubic Bézier curves (C command) hand-tuned for
+    // a clean circuit-trace aesthetic: traces depart roughly orthogonally
+    // from peripheral nodes then bend smoothly toward the hub.
+    const CONNECTIONS = [
+      // ── Hub spokes (8 peripheral nodes → central hub at 450,300) ──
+      {
+        id: 'api-hub', from: 'api', to: 'hub',
+        d: 'M 115 110 C 280 108 340 185 450 300',
+      },
+      {
+        id: 'sdk-hub', from: 'sdk', to: 'hub',
+        d: 'M 415 78 C 416 165 438 225 450 300',
+      },
+      {
+        id: 'auth-hub', from: 'auth', to: 'hub',
+        d: 'M 755 110 C 620 108 560 185 450 300',
+      },
+      {
+        id: 'data-hub', from: 'data', to: 'hub',
+        d: 'M 800 300 C 700 275 590 285 450 300',
+      },
+      {
+        id: 'analytics-hub', from: 'analytics', to: 'hub',
+        d: 'M 720 488 C 635 488 548 420 450 300',
+      },
+      {
+        id: 'cache-hub', from: 'cache', to: 'hub',
+        d: 'M 415 516 C 416 432 442 385 450 300',
+      },
+      {
+        id: 'queue-hub', from: 'queue', to: 'hub',
+        d: 'M 140 480 C 245 480 345 418 450 300',
+      },
+      {
+        id: 'events-hub', from: 'events', to: 'hub',
+        d: 'M 78 295 C 200 268 320 278 450 300',
+      },
+      // ── Outer ring laterals (4 arcs connecting adjacent outer nodes) ──
+      {
+        id: 'api-sdk', from: 'api', to: 'sdk',
+        d: 'M 115 110 C 200 58 330 52 415 78',
+      },
+      {
+        id: 'auth-data', from: 'auth', to: 'data',
+        d: 'M 755 110 C 802 162 802 228 800 300',
+      },
+      {
+        id: 'analytics-cache', from: 'analytics', to: 'cache',
+        d: 'M 720 488 C 660 528 560 528 415 516',
+      },
+      {
+        id: 'queue-events', from: 'queue', to: 'events',
+        d: 'M 140 480 C 96 430 76 388 78 295',
+      },
+    ];
+
+    // Build the path SVG elements and store references for getPointAtLength()
+    const pathEls = {};  // connection id → <path> element
+
+    CONNECTIONS.forEach(conn => {
+      // Wide blurred ambient layer underneath for a soft glow on the wire
+      layerPaths.appendChild(mk('path', {
+        d: conn.d,
+        fill: 'none',
+        stroke: '#0e4a7a',
+        'stroke-width': '5',
+        opacity: '0.3',
+        filter: 'url(#f-path)',
+      }));
+
+      // Crisp dim wire on top (this element is also used by getPointAtLength)
+      const line = mk('path', {
+        id: `path-${conn.id}`,
+        d: conn.d,
+        fill: 'none',
+        stroke: '#163a58',
+        'stroke-width': '1.5',
+        opacity: '0.85',
+      });
+      layerPaths.appendChild(line);
+      pathEls[conn.id] = line;
+    });
+
+    /* ── 3. Node definitions ─────────────────────────────────────────── */
+    const NODES = [
+      { id: 'hub',       x: 450, y: 300, label: 'NEXUS',   sub: 'GATEWAY', hub: true },
+      { id: 'api',       x: 115, y: 110, label: 'API'    },
+      { id: 'sdk',       x: 415, y: 78,  label: 'SDK'    },
+      { id: 'auth',      x: 755, y: 110, label: 'AUTH'   },
+      { id: 'data',      x: 800, y: 300, label: 'DATA'   },
+      { id: 'analytics', x: 720, y: 488, label: 'METRICS'},
+      { id: 'cache',     x: 415, y: 516, label: 'CACHE'  },
+      { id: 'queue',     x: 140, y: 480, label: 'QUEUE'  },
+      { id: 'events',    x: 78,  y: 295, label: 'EVENTS' },
+    ];
+
+    const nodeMap  = {};  // id → node definition
+    const nodeBoxEls = {}; // id → the main <rect> we animate on arrival flash
+
+    NODES.forEach(node => {
+      nodeMap[node.id] = node;
+
+      if (node.hub) {
+        // ── Central hub: concentric borders + corner accent dots ──────
+        const s = 58;
+
+        // Outermost dim ring
+        layerNodes.appendChild(mk('rect', {
+          x: node.x - s/2 - 9, y: node.y - s/2 - 9,
+          width: s + 18,        height: s + 18,
+          rx: '4', fill: 'none',
+          stroke: '#22d3ee', 'stroke-width': '1', opacity: '0.14',
+        }));
+
+        // Middle ring
+        layerNodes.appendChild(mk('rect', {
+          x: node.x - s/2 - 4, y: node.y - s/2 - 4,
+          width: s + 8,         height: s + 8,
+          rx: '3', fill: 'none',
+          stroke: '#38bdf8', 'stroke-width': '1', opacity: '0.32',
+        }));
+
+        // Main box
+        const box = mk('rect', {
+          id: `node-${node.id}`,
+          x: node.x - s/2, y: node.y - s/2,
+          width: s, height: s,
+          rx: '2', fill: '#0b1826',
+          stroke: '#38bdf8', 'stroke-width': '2',
+        });
+        layerNodes.appendChild(box);
+        nodeBoxEls[node.id] = box;
+
+        // Four corner accent dots
+        [
+          [node.x - s/2, node.y - s/2],
+          [node.x + s/2, node.y - s/2],
+          [node.x + s/2, node.y + s/2],
+          [node.x - s/2, node.y + s/2],
+        ].forEach(([cx, cy]) => {
+          layerNodes.appendChild(mk('circle', {
+            cx, cy, r: '2.5', fill: '#22d3ee', opacity: '0.85',
+          }));
+        });
+
+        // Primary label
+        const lbl = mk('text', {
+          x: node.x, y: node.y - 6,
+          'text-anchor': 'middle',
+          'font-family': "'Consolas','SF Mono','Monaco',monospace",
+          'font-size': '12', 'font-weight': 'bold',
+          'letter-spacing': '1.5',
+          fill: '#e2e8f0',
+          style: 'pointer-events:none',
+        });
+        lbl.textContent = node.label;
+        layerNodes.appendChild(lbl);
+
+        // Subtitle label
+        const sub = mk('text', {
+          x: node.x, y: node.y + 11,
+          'text-anchor': 'middle',
+          'font-family': "'Consolas','SF Mono','Monaco',monospace",
+          'font-size': '7', 'letter-spacing': '2',
+          fill: '#38bdf8',
+          style: 'pointer-events:none',
+        });
+        sub.textContent = node.sub;
+        layerNodes.appendChild(sub);
+
+      } else {
+        // ── Peripheral node: rounded rect + thin outer ring + label ──
+        const w = 62, h = 28;
+
+        // Outer dim ring
+        layerNodes.appendChild(mk('rect', {
+          x: node.x - w/2 - 3, y: node.y - h/2 - 3,
+          width: w + 6, height: h + 6,
+          rx: '2', fill: 'none',
+          stroke: '#153048', 'stroke-width': '1', opacity: '0.55',
+        }));
+
+        // Main box
+        const box = mk('rect', {
+          id: `node-${node.id}`,
+          x: node.x - w/2, y: node.y - h/2,
+          width: w, height: h,
+          rx: '2', fill: '#080d1a',
+          stroke: '#1a3858', 'stroke-width': '1.2',
+        });
+        layerNodes.appendChild(box);
+        nodeBoxEls[node.id] = box;
+
+        // Label
+        const lbl = mk('text', {
+          x: node.x, y: node.y,
+          'text-anchor': 'middle', 'dominant-baseline': 'middle',
+          'font-family': "'Consolas','SF Mono','Monaco',monospace",
+          'font-size': '9', 'letter-spacing': '1.2',
+          fill: '#6aaccc',
+          style: 'pointer-events:none',
+        });
+        lbl.textContent = node.label;
+        layerNodes.appendChild(lbl);
+      }
+    });
+
+    /* ── 4. Pulse definitions ────────────────────────────────────────── */
+    // Each pulse travels along one path at `speed` px/s.
+    // `dir`  +1 = from→to direction,  −1 = to→from direction.
+    // `delay` ms before the pulse first becomes visible (stagger).
+    const PULSE_DEFS = [
+      // ── Inbound to hub ────────────────────────────────────────────
+      { path: 'api-hub',         dir:  1, speed: 120, delay:    0 },
+      { path: 'sdk-hub',         dir:  1, speed: 105, delay:  900 },
+      { path: 'auth-hub',        dir:  1, speed: 130, delay: 1700 },
+      { path: 'data-hub',        dir:  1, speed: 112, delay:  450 },
+      { path: 'analytics-hub',   dir:  1, speed:  98, delay: 2300 },
+      { path: 'cache-hub',       dir:  1, speed: 108, delay: 1250 },
+      { path: 'queue-hub',       dir:  1, speed: 118, delay: 2850 },
+      { path: 'events-hub',      dir:  1, speed:  93, delay: 3450 },
+      // ── Outbound from hub (second offset wave) ─────────────────
+      { path: 'api-hub',         dir: -1, speed: 115, delay: 2200 },
+      { path: 'auth-hub',        dir: -1, speed: 128, delay: 3300 },
+      { path: 'data-hub',        dir: -1, speed: 120, delay: 1900 },
+      { path: 'analytics-hub',   dir: -1, speed: 102, delay: 3900 },
+      // ── Lateral outer-ring pulses ──────────────────────────────
+      { path: 'api-sdk',         dir:  1, speed:  88, delay: 1600 },
+      { path: 'auth-data',       dir:  1, speed:  94, delay: 2600 },
+      { path: 'analytics-cache', dir:  1, speed:  86, delay: 3600 },
+      { path: 'queue-events',    dir:  1, speed:  90, delay:  600 },
+    ];
+
+    /* ── 5. Build pulse SVG elements ────────────────────────────────── */
+    // Each pulse is a <g filter="glow"> containing:
+    //   • 3 trailing circles (offset 6, 12, 20 path-units behind main dot)
+    //   • 1 main bright dot
+    const connMap = {};
+    CONNECTIONS.forEach(c => { connMap[c.id] = c; });
+
+    const pulses = PULSE_DEFS.map(def => {
+      const pathEl = pathEls[def.path];
+      if (!pathEl) return null;
+
+      const totalLen = pathEl.getTotalLength();
+
+      // Group with glow filter; hidden until delay elapses
+      const g = mk('g', { filter: 'url(#f-pulse)', visibility: 'hidden' });
+
+      // Three trailing circles (innermost = furthest behind)
+      const t3 = mk('circle', { r: '1.8', fill: '#22d3ee', opacity: '0.18' });
+      const t2 = mk('circle', { r: '2.6', fill: '#22d3ee', opacity: '0.35' });
+      const t1 = mk('circle', { r: '3.4', fill: '#38bdf8', opacity: '0.60' });
+      // Main bright dot
+      const dot = mk('circle', { r: '4.3', fill: '#dff6ff', opacity: '0.96' });
+
+      g.appendChild(t3);
+      g.appendChild(t2);
+      g.appendChild(t1);
+      g.appendChild(dot);
+      layerPulses.appendChild(g);
+
+      return {
+        g, pathEl, totalLen,
+        dot, t1, t2, t3,
+        def,
+        // Starting position: front of path for dir +1, back for dir −1
+        pos: def.dir > 0 ? 0 : totalLen,
+        startTime: null,  // set on first frame
+      };
+    }).filter(Boolean);
+
+    /* ── Node flash on pulse arrival ─────────────────────────────────── */
+    const flashTimers = {};
+
+    function flashNode(nodeId) {
+      const box = nodeBoxEls[nodeId];
+      if (!box) return;
+      clearTimeout(flashTimers[nodeId]);
+
+      // Brighten border + add glow
+      box.setAttribute('stroke', '#38bdf8');
+      box.setAttribute('stroke-width', '2.4');
+      box.setAttribute('filter', 'url(#f-node)');
+
+      // Restore after 380 ms
+      flashTimers[nodeId] = setTimeout(() => {
+        const isHub = (nodeId === 'hub');
+        box.setAttribute('stroke',       isHub ? '#38bdf8' : '#1a3858');
+        box.setAttribute('stroke-width', isHub ? '2'       : '1.2');
+        box.removeAttribute('filter');
+      }, 380);
+    }
+
+    /* ── 6. Animation loop ───────────────────────────────────────────── */
+    // Trail offsets in path-length units (always positive; direction handled below)
+    const TRAIL_OFFSETS = [6, 12, 20];
+
+    let prevTime = null;
+
+    function tick(now) {
+      // Compute dt in ms; cap at 50 ms so tab-switch resumption isn't jarring
+      const dt = prevTime !== null ? Math.min(now - prevTime, 50) : 0;
+      prevTime = now;
+
+      pulses.forEach(p => {
+        // Record start time on the very first frame
+        if (p.startTime === null) p.startTime = now;
+
+        // Keep hidden until stagger delay elapses
+        if (now - p.startTime < p.def.delay) return;
+        p.g.setAttribute('visibility', 'visible');
+
+        // Advance position along the path
+        const step = (p.def.speed / 1000) * dt;
+        p.pos += step * p.def.dir;
+
+        // Wrap around and flash arrival node
+        const conn = connMap[p.def.path];
+        if (p.def.dir > 0 && p.pos >= p.totalLen) {
+          p.pos = 0;
+          flashNode(conn.to);
+        } else if (p.def.dir < 0 && p.pos <= 0) {
+          p.pos = p.totalLen;
+          flashNode(conn.from);
+        }
+
+        // Clamp for getPointAtLength (handles fractional overshoot)
+        const cpos = Math.max(0, Math.min(p.totalLen, p.pos));
+
+        // Position main dot
+        const pt = p.pathEl.getPointAtLength(cpos);
+        p.dot.setAttribute('cx', pt.x);
+        p.dot.setAttribute('cy', pt.y);
+
+        // Position trailing circles (each further behind in travel direction)
+        [p.t1, p.t2, p.t3].forEach((circle, i) => {
+          const tpos = Math.max(0, Math.min(p.totalLen,
+            cpos - TRAIL_OFFSETS[i] * p.def.dir));
+          const tp = p.pathEl.getPointAtLength(tpos);
+          circle.setAttribute('cx', tp.x);
+          circle.setAttribute('cy', tp.y);
+        });
+      });
+
+      requestAnimationFrame(tick);
+    }
+
+    // Kick off the loop
+    requestAnimationFrame(tick);
+
+  })();
+  </script>
+</body>
+</html>

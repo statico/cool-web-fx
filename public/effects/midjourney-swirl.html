@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Midjourney Text Swirl</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a0f;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+/**
+ * Midjourney-style Text Swirl
+ * -----------------------------------------------------------------
+ * Technique:
+ *   1. Render a word to an offscreen canvas using a bold system font.
+ *   2. Sample lit pixels from getImageData (every STEP px) → target points.
+ *   3. Spawn particles scattered in a spiral vortex around the canvas center.
+ *   4. Each particle springs toward its assigned target with eased velocity.
+ *   5. On arrival, add gentle per-particle curl noise so the shape breathes.
+ *   6. Periodically dissolve all particles back into a vortex and reform a
+ *      new word (cycles through WORDS array).
+ */
+
+const WORDS        = ['imagine', 'create', 'dream', 'explore'];
+const STEP         = 4;          // pixel sampling stride on offscreen canvas
+const MAX_PARTICLES= 6000;       // hard cap
+const DPR_CAP      = 2;          // cap devicePixelRatio for GPU headroom
+const FONT_RATIO   = 0.28;       // font size as fraction of canvas width
+const SETTLE_TIME  = 3800;       // ms particles spend settled before dissolve
+const DISSOLVE_TIME= 1200;       // ms for dissolve-out animation
+const FORM_TIME    = 2000;       // ms for form-in animation
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H, dpr;
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+  W   = window.innerWidth;
+  H   = window.innerHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+  // Rebuild particle targets whenever the window resizes
+  rebuildTargets();
+}
+
+// ── Offscreen text sampling ───────────────────────────────────────────────────
+/**
+ * Draw `word` onto a hidden canvas, read its pixels, return an array of
+ * {x, y} positions (in CSS-pixel space, centred on W×H) for each lit pixel.
+ */
+function sampleTextPixels(word) {
+  const fontSize = Math.floor(Math.min(W * FONT_RATIO, H * 0.35));
+  const font     = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+
+  // Measure text so we can size the offscreen canvas tightly
+  const measure  = document.createElement('canvas');
+  const mctx     = measure.getContext('2d');
+  mctx.font      = font;
+  const metrics  = mctx.measureText(word);
+  const tw = Math.ceil(metrics.width) + 4;
+  const th = fontSize + 8;
+
+  measure.width  = tw;
+  measure.height = th;
+  mctx.font      = font;
+  mctx.fillStyle = '#ffffff';
+  mctx.textBaseline = 'top';
+  mctx.fillText(word, 2, 4);
+
+  const imageData = mctx.getImageData(0, 0, tw, th);
+  const data      = imageData.data;
+
+  const offsetX = (W - tw) / 2;
+  const offsetY = (H - th) / 2;
+  const points  = [];
+
+  for (let py = 0; py < th; py += STEP) {
+    for (let px = 0; px < tw; px += STEP) {
+      const idx = (py * tw + px) * 4;
+      // alpha channel > threshold means this pixel is part of the letter
+      if (data[idx + 3] > 60) {
+        points.push({
+          x: offsetX + px,
+          y: offsetY + py
+        });
+      }
+    }
+  }
+  return points;
+}
+
+// ── Particle class ────────────────────────────────────────────────────────────
+class Particle {
+  constructor() {
+    this.reset();
+  }
+
+  /** Place particle at a random spiral position centred on canvas */
+  reset() {
+    const angle  = Math.random() * Math.PI * 2;
+    const radius = (Math.random() * 0.5 + 0.1) * Math.min(W, H) * 0.6;
+    this.x  = W / 2 + Math.cos(angle) * radius;
+    this.y  = H / 2 + Math.sin(angle) * radius;
+    this.vx = 0;
+    this.vy = 0;
+    // Oscillator phase for curl noise
+    this.phase = Math.random() * Math.PI * 2;
+    this.speed = 0.6 + Math.random() * 0.8;  // individual spring multiplier
+    // Target will be assigned externally
+    this.tx = this.x;
+    this.ty = this.y;
+    // Visual
+    this.size  = 0.8 + Math.random() * 0.9;
+    this.alpha = 0;
+    this.targetAlpha = 0.7 + Math.random() * 0.3;
+    // dissolve / forming state
+    this.settled = false;
+    this.dissolving = false;
+  }
+
+  /** Assign this particle a new text-shape target */
+  setTarget(tx, ty) {
+    this.tx = tx;
+    this.ty = ty;
+    this.dissolved = false;
+  }
+
+  update(t, phase /* 'forming' | 'settled' | 'dissolving' */) {
+    const SPRING = 0.045 * this.speed;
+    const DAMP   = 0.82;
+
+    if (phase === 'dissolving') {
+      // Drift outward in a spiral while fading
+      const angle  = Math.atan2(this.y - H / 2, this.x - W / 2);
+      const spin   = angle + 0.04;
+      const r      = Math.hypot(this.x - W / 2, this.y - H / 2);
+      this.vx += (Math.cos(spin) * r * 0.006 + (this.x - W / 2) * 0.004);
+      this.vy += (Math.sin(spin) * r * 0.006 + (this.y - H / 2) * 0.004);
+      this.vx *= DAMP;
+      this.vy *= DAMP;
+      this.x  += this.vx;
+      this.y  += this.vy;
+      this.alpha *= 0.96;
+      return;
+    }
+
+    // Curl noise: a slowly drifting perpendicular nudge keeps particles alive
+    const curl  = Math.sin(t * 0.0007 + this.phase) * 0.28;
+    const angle = Math.atan2(this.ty - H / 2, this.tx - W / 2);
+    const curlX = -Math.sin(angle) * curl;
+    const curlY =  Math.cos(angle) * curl;
+
+    // Spring toward target
+    this.vx += (this.tx - this.x) * SPRING + curlX;
+    this.vy += (this.ty - this.y) * SPRING + curlY;
+    this.vx *= DAMP;
+    this.vy *= DAMP;
+    this.x  += this.vx;
+    this.y  += this.vy;
+
+    // Fade in
+    if (this.alpha < this.targetAlpha) {
+      this.alpha = Math.min(this.targetAlpha, this.alpha + 0.018);
+    }
+  }
+
+  draw(ctx) {
+    if (this.alpha < 0.01) return;
+    ctx.globalAlpha = this.alpha;
+    ctx.fillStyle   = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let particles   = [];
+let wordIndex   = 0;
+let textPoints  = [];
+let animPhase   = 'forming';   // 'forming' | 'settled' | 'dissolving'
+let phaseStart  = performance.now();
+let animFrameId = null;
+
+/** Build / rebuild targets for current word, (re)spawn particles as needed */
+function rebuildTargets() {
+  textPoints = sampleTextPixels(WORDS[wordIndex]);
+
+  // Clamp to MAX_PARTICLES
+  if (textPoints.length > MAX_PARTICLES) {
+    // Thin evenly
+    const step = textPoints.length / MAX_PARTICLES;
+    const thinned = [];
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      thinned.push(textPoints[Math.floor(i * step)]);
+    }
+    textPoints = thinned;
+  }
+
+  const count = textPoints.length;
+
+  // Resize particles array
+  while (particles.length < count) particles.push(new Particle());
+  particles.length = count;
+
+  // Assign targets; reset position if dissolving or just starting
+  for (let i = 0; i < count; i++) {
+    particles[i].setTarget(textPoints[i].x, textPoints[i].y);
+    if (animPhase !== 'settled') {
+      // Scatter into vortex so they fly in
+      const angle  = Math.random() * Math.PI * 2;
+      const radius = (Math.random() * 0.4 + 0.2) * Math.min(W, H) * 0.7;
+      particles[i].x = W / 2 + Math.cos(angle) * radius;
+      particles[i].y = H / 2 + Math.sin(angle) * radius;
+      particles[i].vx = 0;
+      particles[i].vy = 0;
+      particles[i].alpha = 0;
+    }
+  }
+}
+
+// ── Transition to next word ───────────────────────────────────────────────────
+function startDissolve() {
+  animPhase  = 'dissolving';
+  phaseStart = performance.now();
+}
+
+function startNextWord() {
+  wordIndex  = (wordIndex + 1) % WORDS.length;
+  animPhase  = 'forming';
+  phaseStart = performance.now();
+  rebuildTargets();
+}
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+function tick(t) {
+  animFrameId = requestAnimationFrame(tick);
+
+  const elapsed = t - phaseStart;
+
+  // Phase transitions
+  if (animPhase === 'forming' && elapsed > FORM_TIME) {
+    animPhase  = 'settled';
+    phaseStart = t;
+  } else if (animPhase === 'settled' && elapsed > SETTLE_TIME) {
+    startDissolve();
+  } else if (animPhase === 'dissolving' && elapsed > DISSOLVE_TIME) {
+    startNextWord();
+  }
+
+  // Clear with slight motion-blur trail
+  ctx.globalAlpha = 1;
+  ctx.fillStyle   = 'rgba(10, 10, 15, 0.30)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Update & draw each particle
+  for (let i = 0; i < particles.length; i++) {
+    particles[i].update(t, animPhase);
+    particles[i].draw(ctx);
+  }
+
+  // Soft radial glow behind text using compositing
+  if (animPhase !== 'dissolving') {
+    const cx = W / 2;
+    const cy = H / 2;
+    const r  = Math.min(W, H) * 0.38;
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const glowAlpha = animPhase === 'forming'
+      ? Math.min(1, elapsed / FORM_TIME) * 0.07
+      : 0.07;
+    grd.addColorStop(0,   `rgba(200, 195, 255, ${glowAlpha})`);
+    grd.addColorStop(1,   'rgba(10, 10, 15, 0)');
+    ctx.globalAlpha   = 1;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+}
+
+// ── Kick off ──────────────────────────────────────────────────────────────────
+window.addEventListener('resize', resize);
+resize();   // sets W, H, dpr, calls rebuildTargets()
+animPhase  = 'forming';
+phaseStart = performance.now();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
