@@ -1,0 +1,21 @@
+# cool-web-fx
+
+> A static gallery of cool web interaction effects, each recreated as a single
+> self-contained, copy-pasteable HTML/CSS/JS file. Generated with Claude Code.
+> Inspired by reactbits.dev.
+
+Each effect's full source lives at /effects/<slug>.html and is also printed
+verbatim in each demo page's HTML for easy scraping (no JS execution needed).
+
+## Read first
+
+- [Agent skill file](/skill.md): how to grab and reuse an effect, and attribution.
+
+## Effects
+
+- cyber-canvas: animated particle/network background canvas — seen on https://chatgpt.com/cyber — /effects/cyber-canvas.html
+- meshy-grid: perspective grid, volumetric light, dust motes — seen on https://www.meshy.ai/ — /effects/meshy-grid.html
+- sneakers-text: gibberish-to-readable "Sneakers" text decode — seen on https://infisical.com/ — /effects/sneakers-text.html
+- midjourney-swirl: particles swirling into text — seen on https://www.midjourney.com/home — /effects/midjourney-swirl.html
+- electron-lines: glowing pulses along SVG paths — seen on https://schematichq.com/ and https://portkey.ai/ — /effects/electron-lines.html
+- resend-cube: rotating Rubik's cube via CSS 3D — seen on https://resend.com/home — /effects/resend-cube.html
