@@ -1,0 +1,10 @@
+{
+  "title": "Sneakers Text Decode",
+  "slug": "sneakers-text",
+  "order": 3,
+  "sourceUrl": "https://infisical.com/",
+  "sourceName": "Infisical",
+  "credit": "Infisical",
+  "blurb": "Characters scramble through random glyphs then snap left-to-right into readable text.",
+  "technique": "The core is a `TextScramble` class whose `setText(text)` method drives a `requestAnimationFrame` loop. Each call to the frame function rebuilds the full output string character-by-character: locked characters emit their real glyph, unlocked ones emit a random sample from a pool of alphanumeric and punctuation noise (e.g. `!@#$%^&*<>?/\\|{}[]~`). Spaces are passed through untouched so word gaps always remain correct.\n\nA per-character **stagger** counter controls when each position locks. Character `i` locks after `i × stagger + speed` elapsed frames, producing the left-to-right cascade: the leftmost character settles first, the rightmost last. `speed` sets the minimum frames a character scrambles before it can lock, keeping even short strings visibly noisy.\n\n`setText()` returns a `Promise` that resolves the moment every character is locked. The demo loop chains: call `setText(phrase)` → await resolve → `setTimeout(hold)` → `setTimeout(gap)` → call `setText(nextPhrase)`, repeating endlessly through the phrase array with no `setInterval` accumulation and no timer leaks.\n\nA `prefers-reduced-motion` media query short-circuits the entire rAF path, substituting a plain `setInterval` phrase rotation so the text is always readable without any animation."
+}
