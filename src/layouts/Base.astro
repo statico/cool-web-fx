@@ -1,0 +1,54 @@
+---
+import '../styles/site.css';
+const { title } = Astro.props;
+const base = import.meta.env.BASE_URL; // respects astro.config base
+const pageTitle = title
+  ? `${title} — cool web fx`
+  : 'Cool web interaction effects that Ian likes';
+const CC_URL = 'https://claude.com/claude-code';
+const REPO_URL = 'https://github.com/statico/cool-web-fx';
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta
+      name="description"
+      content="A gallery of cool web interaction effects, recreated as copy-pasteable HTML/CSS/JS. Generated with Claude Code. Inspired by reactbits.dev."
+    />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <div class="brand">
+          <span class="mark">◆</span>
+          <h1><a href={base}>Cool web interaction effects that Ian likes</a></h1>
+        </div>
+        <a class="cc-badge" href={CC_URL} target="_blank" rel="noopener">
+          <span class="dot"></span> Generated with Claude Code
+        </a>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <span>
+          Generated with <a href={CC_URL} target="_blank" rel="noopener">Claude Code</a>.
+          Inspired by <a href="https://reactbits.dev" target="_blank" rel="noopener">reactbits.dev</a>.
+        </span>
+        <span>
+          <a href={`${base}skill.md`}>skill.md</a> ·
+          <a href={`${base}llms.txt`}>llms.txt</a> ·
+          <a href={REPO_URL} target="_blank" rel="noopener">source</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

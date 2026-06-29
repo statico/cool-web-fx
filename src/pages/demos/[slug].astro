@@ -1,0 +1,126 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Base from '../../layouts/Base.astro';
+
+const base = import.meta.env.BASE_URL;
+
+export async function getStaticPaths() {
+  const metaModules = import.meta.glob('../../demos/*.json', { eager: true });
+  return Object.values(metaModules).map((m) => {
+    const meta = (m as any).default;
+    return { params: { slug: meta.slug }, props: { meta } };
+  });
+}
+
+const { meta } = Astro.props;
+
+// Read the canonical, runnable demo file. This is the SAME file the iframe
+// loads and the screenshotter captures — so the code shown can never drift
+// from the code running.
+const htmlPath = path.resolve(`public/effects/${meta.slug}.html`);
+const rawCode = fs.readFileSync(htmlPath, 'utf-8');
+
+// Minimal, safe Markdown-ish rendering for the "technique" prose:
+// paragraphs split on blank lines; `inline code` and **bold** supported.
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const inline = (s: string) =>
+  esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+const techniqueHtml = (meta.technique || '')
+  .split(/\n\s*\n/)
+  .map((p: string) => `<p>${inline(p.trim())}</p>`)
+  .join('\n');
+---
+<Base title={meta.title}>
+  <div class="demo-main">
+    <div class="crumb"><a href={base}>← all effects</a></div>
+
+    <div class="demo-head">
+      <div>
+        <h2>{meta.title}</h2>
+        <div class="src">
+          Seen on <a href={meta.sourceUrl} target="_blank" rel="noopener">{meta.sourceName}</a>
+          {meta.credit ? <> · credit {meta.credit}</> : null}
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-frame">
+      <iframe
+        src={`${base}effects/${meta.slug}.html`}
+        title={`${meta.title} live demo`}
+        loading="lazy"
+      ></iframe>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn primary" id="copyBtn" data-label="Copy code">Copy code</button>
+      <button class="btn" id="viewBtn">View code in modal</button>
+      <a class="btn" href={`${base}effects/${meta.slug}.html`} target="_blank" rel="noopener">Open standalone ↗</a>
+    </div>
+
+    <section class="block technique">
+      <h3>How it works</h3>
+      <Fragment set:html={techniqueHtml} />
+    </section>
+
+    <section class="block">
+      <h3>Code — copy &amp; paste this whole file</h3>
+      <pre class="code"><code id="code">{rawCode}</code></pre>
+    </section>
+
+    <section class="block credit">
+      <h3>Source &amp; credit</h3>
+      <p>
+        Effect seen on <a href={meta.sourceUrl} target="_blank" rel="noopener">{meta.sourceUrl}</a>
+        {meta.credit ? <> — credit to {meta.credit}.</> : '.'}
+      </p>
+      <p class="disclaimer">
+        This is an independent recreation of the effect built from scratch for
+        educational use. No proprietary source code was copied.
+      </p>
+    </section>
+  </div>
+
+  <!-- Code modal (smui-style: blurred backdrop, Esc / click-outside to close) -->
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Source code">
+    <div class="modal-box">
+      <div class="modal-bar">
+        <span class="name">{meta.slug}.html</span>
+        <div class="actions">
+          <button class="btn" id="copyBtnModal">Copy</button>
+          <button class="btn" id="closeBtn">Close ✕</button>
+        </div>
+      </div>
+      <pre class="code"><code>{rawCode}</code></pre>
+    </div>
+  </div>
+
+  <script is:inline>
+    (function () {
+      const codeEl = document.getElementById('code');
+      const modal = document.getElementById('modal');
+      const getCode = () => (codeEl ? codeEl.textContent || '' : '');
+
+      function copy(btn) {
+        navigator.clipboard.writeText(getCode()).then(() => {
+          const orig = btn.dataset.label || btn.textContent;
+          btn.textContent = 'Copied ✓';
+          setTimeout(() => { btn.textContent = orig; }, 1400);
+        });
+      }
+      document.getElementById('copyBtn')?.addEventListener('click', (e) => copy(e.currentTarget));
+      document.getElementById('copyBtnModal')?.addEventListener('click', (e) => copy(e.currentTarget));
+
+      function openModal() { modal.classList.add('open'); document.body.style.overflow = 'hidden'; }
+      function closeModal() { modal.classList.remove('open'); document.body.style.overflow = ''; }
+      document.getElementById('viewBtn')?.addEventListener('click', openModal);
+      document.getElementById('closeBtn')?.addEventListener('click', closeModal);
+      modal?.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    })();
+  </script>
+</Base>

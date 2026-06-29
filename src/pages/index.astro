@@ -1,0 +1,47 @@
+---
+import Base from '../layouts/Base.astro';
+
+const base = import.meta.env.BASE_URL;
+
+// Each demo is described by src/demos/<slug>.json and runs from
+// public/effects/<slug>.html. Glob the metadata and sort by `order`.
+const metaModules = import.meta.glob('../demos/*.json', { eager: true });
+const demos = Object.values(metaModules)
+  .map((m) => (m as any).default)
+  .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+---
+<Base>
+  <section class="intro">
+    <p class="lede">
+      A growing gallery of web interaction effects I think are cool — each one
+      recreated from scratch as copy-pasteable HTML/CSS/JS.
+    </p>
+    <p>
+      Every demo is a single self-contained file you can lift straight into your
+      own page. The full code is embedded in each page (no build step, no API) so
+      it's easy for humans and LLMs to read. Each effect credits where I first saw
+      it. Inspired by <a href="https://reactbits.dev" target="_blank" rel="noopener">reactbits.dev</a>.
+    </p>
+  </section>
+
+  <div class="gallery">
+    {demos.map((d) => (
+      <a class="card" href={`${base}demos/${d.slug}`}>
+        <img
+          class="thumb"
+          src={`${base}thumbs/${d.slug}.png`}
+          alt={`${d.title} preview`}
+          loading="lazy"
+          width="320"
+          height="200"
+          onerror="this.classList.add('thumb-fallback');this.removeAttribute('src');this.alt='preview';"
+        />
+        <div class="body">
+          <div class="title">{d.title}</div>
+          <div class="src">{d.sourceName}</div>
+          <div class="blurb">{d.blurb}</div>
+        </div>
+      </a>
+    ))}
+  </div>
+</Base>
