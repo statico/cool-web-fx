@@ -1,0 +1,16 @@
+{
+  "name": "cool-web-fx",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A gallery of cool web interaction effects that Ian likes — copy-pasteable HTML/CSS/JS, generated with Claude Code.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "thumbs": "node scripts/take-screenshots.mjs"
+  },
+  "devDependencies": {
+    "astro": "^4.16.0"
+  }
+}
