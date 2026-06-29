@@ -57,7 +57,10 @@ async function main() {
     .map((f) => f.replace(/\.json$/, ''));
 
   const { server, port } = await staticServer(publicDir);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    // --no-sandbox keeps this working inside CI containers / restricted sandboxes.
+    args: ['--no-sandbox', '--disable-dev-shm-usage'],
+  });
   const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 2 });
 
   for (const slug of slugs) {
