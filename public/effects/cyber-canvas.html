@@ -1,248 +1,329 @@
 <!doctype html>
+<!--
+  Cyber Ambient Overlay  —  faithful port of ChatGPT's /cyber page header
+  ─────────────────────────────────────────────────────────────────────────────
+  Source: https://chatgpt.com/cyber  →  canvas#cyber-ambient-overlay-canvas
+  Logic distilled from chatgpt.com/cdn/assets/cyber-g632ua04.js (the `De()`
+  React component). This is a 2D <canvas> "matrix field" — NOT a particle network.
+
+  Three invisible circular RIPPLE waves (small / medium / large) endlessly grow
+  outward from the top of the canvas and respawn. A grid of monospace glyphs
+  (from the set ".:-=+*#%@<>/\[]{}01") is scattered on a 13px lattice. Each wave
+  carries three concentric gaussian rings that (a) push nearby glyphs radially
+  outward and (b) light them up in rainbow HSL, advancing the glyph character and
+  adding a blur shadow. Faint colored squares pulse along the ring crests and a
+  dim grid sits underneath. Each frame paints a translucent surface-colored rect
+  for the fade-trail. Capped at ~24 fps.
+
+  Completely standalone — no CDN, no web fonts, no external assets.
+-->
 <html lang="en">
 <head>
   <link rel="icon" href="data:,">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Cyber Canvas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cyber Ambient Overlay</title>
   <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
     html, body {
-      margin: 0;
+      width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #05070a;
+      background: #212121;            /* ChatGPT dark --token-main-surface-primary */
     }
-    canvas { display: block; }
+
+    /* Container matches the real page: positioned wrapper with a soft bottom
+       mask so the field dissolves toward the footer, exactly as on /cyber. */
+    #wrap {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background-color: #212121;
+      pointer-events: none;
+      -webkit-mask-image: linear-gradient(to bottom,
+        rgba(0,0,0,1) 0%, rgba(0,0,0,0.98) 70%, rgba(0,0,0,0.75) 88%, rgba(0,0,0,0) 100%);
+              mask-image: linear-gradient(to bottom,
+        rgba(0,0,0,1) 0%, rgba(0,0,0,0.98) 70%, rgba(0,0,0,0.75) 88%, rgba(0,0,0,0) 100%);
+    }
+
+    #cyber-ambient-overlay-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.72;                  /* real value for dark theme */
+    }
   </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<script>
-/* ================================================================
-   Cyber Canvas
-   Animated node/line constellation with parallax on a dark field.
-   Inspired by the ChatGPT /cyber hero background.
-   ================================================================ */
-(function () {
-  'use strict';
+  <div id="wrap">
+    <canvas id="cyber-ambient-overlay-canvas"></canvas>
+  </div>
 
-  // ── palette & tuning ──────────────────────────────────────────
-  const BG          = '#05070a';
-  const CYAN        = [94, 234, 212];  // #5eead4 – node glow
-  const BLUE        = [56, 189, 248];  // #38bdf8 – lines & grid
-  const MAX_NODES   = 120;
-  const CONN_DIST   = 165;    // connection threshold, logical px
-  const BASE_SPEED  = 0.18;   // px/tick at 60 fps
-  const PARALLAX_PX = 22;     // max parallax offset at screen edge
+  <script>
+  /* ====================================================================
+     Cyber Ambient Overlay — animation engine
+     Constants preserved verbatim from the real `De()` source.
+  ==================================================================== */
+  (function () {
+    'use strict';
 
-  // ── canvas & context ──────────────────────────────────────────
-  const canvas = document.getElementById('c');
-  const ctx    = canvas.getContext('2d');
-  if (!ctx) {
-    document.body.style.cssText = 'color:#fff;padding:2rem;font-family:system-ui';
-    document.body.textContent   = 'Canvas 2D is not supported in this browser.';
-    return;
-  }
+    /* ── Fixed constants from the real implementation ─────────────────── */
+    const CELL   = 13;                          // lattice / font size in px
+    const GLYPHS = '.:-=+*#%@<>/\\[]{}01';       // 19-character set
+    const NG     = GLYPHS.length;               // 19
+    const FRAME_MS = 1000 / 24;                 // ~24 fps cap (41.666…ms)
 
-  let W, H, dpr;
-  let nodes     = [];
-  let mouseRaw  = { x: 0, y: 0 };  // raw mouse coords
-  let mouseSmth = { x: 0, y: 0 };  // smoothed for parallax
-  let lastT     = 0;                // previous frame timestamp
+    // Dark-theme palette (the page picks these when the surface is dark).
+    const SURFACE   = { r: 33, g: 33, b: 33 };  // #212121
+    const FADE      = `rgba(${SURFACE.r}, ${SURFACE.g}, ${SURFACE.b}, 0.18)`;
+    const GRID_RGB  = 'rgb(108, 110, 138)';
+    const GRID_A    = 0.06;
+    const DARK      = true;
 
-  // ── resize – reset canvas dimensions and repopulate nodes ─────
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    W   = window.innerWidth;
-    H   = window.innerHeight;
-    canvas.width        = Math.round(W * dpr);
-    canvas.height       = Math.round(H * dpr);
-    canvas.style.width  = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.scale(dpr, dpr);          // ctx transform resets on dimension change
-    initNodes();
-  }
+    const wrap   = document.getElementById('wrap');
+    const canvas = document.getElementById('cyber-ambient-overlay-canvas');
+    const ctx    = canvas.getContext('2d', { alpha: true });
 
-  // ── populate nodes ────────────────────────────────────────────
-  function initNodes() {
-    // Scale count with area; floor/ceil to keep it lively on small screens
-    const count = Math.min(MAX_NODES, Math.max(40, Math.floor(W * H / 9000)));
-    nodes = [];
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = BASE_SPEED * (0.4 + Math.random() * 0.6);
-      nodes.push({
-        x:     Math.random() * W,
-        y:     Math.random() * H,
-        vx:    Math.cos(angle) * speed,
-        vy:    Math.sin(angle) * speed,
-        r:     0.5 + Math.random() * 1.2,         // core radius
-        depth: 0.3 + Math.random() * 0.7,         // parallax depth (0.3–1)
-        phase: Math.random() * Math.PI * 2,        // glow pulse phase
-      });
+    // Device-pixel-ratio is clamped to 1 in the original (perf choice).
+    const DPR = Math.min(window.devicePixelRatio || 1, 1);
+
+    let W = 0, H = 0;        // CSS pixel width / height
+    let cols = 0, rows = 0;  // lattice dimensions
+    let last = 0, raf = 0;
+    let running = !document.hidden;
+
+    let glyphs = [];         // scattered matrix characters
+    let waves  = [];         // 3 expanding ripple waves
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+    /* ── Pick a spawn centre at least minDist from the previous wave ──── */
+    function pushAway(prev, band) {
+      const cx   = (band + 0.5) / 3 * W;        // column centre for this band
+      const span = W / 3;
+      const minD = Math.min(W, H) * 0.28;
+      let pick = { x: Math.random() * W, y: Math.random() * H * 0.82 };
+      for (let i = 0; i < 10; i++) {
+        const cand = {
+          x: clamp(cx + (Math.random() - 0.5) * span * 0.9, 0, W),
+          y: Math.random() * H * 0.82,
+        };
+        if (Math.hypot(cand.x - prev.x, cand.y - prev.y) >= minD) return cand;
+        pick = cand;
+      }
+      return pick;
     }
-  }
 
-  // ── subtle perspective grid ───────────────────────────────────
-  // Vanishing-point ray lines + compressed horizontal cross-lines
-  function drawGrid() {
-    const vpx = W * 0.5;
-    const vpy = H * 0.52;  // horizon sits just below centre
+    /* ── Create a wave object. size ∈ {small,medium,large} ────────────── */
+    function makeWave(size, band, prev) {
+      const cx   = (band + 0.5) / 3 * W;
+      const span = W / 3;
+      const home = {
+        x: clamp(cx + (Math.random() - 0.5) * span * 0.9, 0, W),
+        y: Math.random() * H * 0.82,
+      };
+      const c = prev ? pushAway(prev, band) : home;
+      const diag = Math.hypot(W, H);
 
-    ctx.save();
-    ctx.strokeStyle = `rgba(${BLUE.join(',')},1)`;
-    ctx.lineWidth   = 0.5;
+      if (size === 'small') {
+        return { x: c.x, y: c.y, radius: 0,
+          speed: 0.34 + Math.random() * 0.12, band: 16 + Math.random() * 6,
+          baseStrength: 0.6, strength: 0.6,
+          targetRadius: diag * (0.40 + Math.random() * 0.18) };
+      }
+      if (size === 'medium') {
+        return { x: c.x, y: c.y, radius: 0,
+          speed: 0.28 + Math.random() * 0.10, band: 22 + Math.random() * 8,
+          baseStrength: 0.82, strength: 0.82,
+          targetRadius: diag * (0.62 + Math.random() * 0.18) };
+      }
+      return { x: c.x, y: c.y, radius: 0,
+        speed: 0.22 + Math.random() * 0.10, band: 30 + Math.random() * 10,
+        baseStrength: 1, strength: 1,
+        targetRadius: diag * (0.85 + Math.random() * 0.20) };
+    }
 
-    // Radial floor lines
-    ctx.globalAlpha = 0.055;
-    const RAY_N  = 20;
-    const A_MIN  = Math.PI * 0.06;
-    const A_MAX  = Math.PI * 0.94;
-    const rayLen = Math.hypot(W, H) * 1.5;
-    for (let i = 0; i <= RAY_N; i++) {
-      const a = A_MIN + (i / RAY_N) * (A_MAX - A_MIN);
+    /* ── Re-seed glyphs + waves (called on every resize) ──────────────── */
+    function seed() {
+      const n = clamp(Math.floor(cols * rows / 72), 56, 180);
+      glyphs = Array.from({ length: n }, () => ({
+        col: Math.floor(Math.random() * cols),
+        row: Math.floor(Math.random() * rows),
+        glyphOffset: Math.floor(Math.random() * NG),
+        hueOffset: Math.random() * 360,
+        drift: Math.random() * Math.PI * 2,
+      }));
+      const a = makeWave('small', 0);
+      const b = makeWave('medium', 1, { x: a.x, y: a.y });
+      const c = makeWave('large', 2, { x: b.x, y: b.y });
+      waves = [a, b, c];
+    }
+
+    /* ── Resize / setup ───────────────────────────────────────────────── */
+    function resize() {
+      const r = wrap.getBoundingClientRect();
+      W = Math.max(1, r.width);
+      H = Math.max(1, r.height);
+      cols = Math.max(1, Math.floor(W / CELL));
+      rows = Math.max(1, Math.floor(H / CELL));
+      canvas.width  = Math.floor(W * DPR);
+      canvas.height = Math.floor(H * DPR);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.font = `${CELL}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'center';
+      seed();
+    }
+
+    /* ── Faint background grid ────────────────────────────────────────── */
+    function drawGrid() {
+      ctx.strokeStyle = GRID_RGB;
+      ctx.globalAlpha = GRID_A;
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(vpx, vpy);
-      ctx.lineTo(vpx + Math.cos(a) * rayLen, vpy + Math.sin(a) * rayLen);
+      for (let x = 0; x <= W; x += CELL) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = 0; y <= H; y += CELL) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
-    // Horizontal cross-lines below the horizon (power-law spacing)
-    ctx.globalAlpha = 0.045;
-    const H_LINES = 10;
-    for (let i = 1; i <= H_LINES; i++) {
-      const t = Math.pow(i / H_LINES, 1.7);  // compress toward horizon
-      const y = vpy + (H - vpy) * t;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  }
-
-  // ── scanlines overlay ─────────────────────────────────────────
-  // 1 px black band every 4 px at low alpha for CRT texture
-  function drawScanlines() {
-    ctx.save();
-    ctx.globalAlpha = 0.028;
-    ctx.fillStyle   = '#000';
-    for (let y = 0; y < H; y += 4) {
-      ctx.fillRect(0, y, W, 1);
-    }
-    ctx.restore();
-  }
-
-  // ── render loop ───────────────────────────────────────────────
-  function draw(t) {
-    requestAnimationFrame(draw);
-
-    // Time delta – cap to 3 ticks so tabs waking from sleep don't jump
-    const dt = Math.min((t - lastT) / 16.667, 3);
-    lastT = t;
-
-    // ── clear ────────────────────────────────────────────────────
-    ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, W, H);
-
-    // Soft radial vignette darkening the edges
-    const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.88);
-    vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,3,10,0.62)');
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, W, H);
-
-    drawGrid();
-
-    // ── smooth parallax ──────────────────────────────────────────
-    // Exponential ease toward the raw mouse position
-    mouseSmth.x += (mouseRaw.x - mouseSmth.x) * 0.06;
-    mouseSmth.y += (mouseRaw.y - mouseSmth.y) * 0.06;
-    const ox = (mouseSmth.x / W - 0.5) * PARALLAX_PX;
-    const oy = (mouseSmth.y / H - 0.5) * PARALLAX_PX;
-
-    // ── update positions (wrap at edges with gutter) ─────────────
-    const G = 40;
-    for (const n of nodes) {
-      n.x    += n.vx * dt;
-      n.y    += n.vy * dt;
-      n.phase += 0.018 * dt;  // glow pulse
-      if (n.x < -G)      n.x = W + G;
-      else if (n.x > W + G) n.x = -G;
-      if (n.y < -G)      n.y = H + G;
-      else if (n.y > H + G) n.y = -G;
-    }
-
-    // ── connecting lines (O(n²) but n ≤ 120, fast enough) ────────
-    const CD2 = CONN_DIST * CONN_DIST;
-    ctx.lineWidth = 0.65;
-    for (let i = 0; i < nodes.length - 1; i++) {
-      const a  = nodes[i];
-      const ax = a.x + ox * a.depth;
-      const ay = a.y + oy * a.depth;
-      for (let j = i + 1; j < nodes.length; j++) {
-        const b  = nodes[j];
-        const bx = b.x + ox * b.depth;
-        const by = b.y + oy * b.depth;
-        const dx = ax - bx;
-        const dy = ay - by;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < CD2) {
-          // Alpha fades linearly from 0.42 at zero distance to 0 at threshold
-          const alpha = (1 - Math.sqrt(d2) / CONN_DIST) * 0.42;
-          ctx.beginPath();
-          ctx.strokeStyle = `rgba(${BLUE.join(',')},${alpha.toFixed(3)})`;
-          ctx.moveTo(ax, ay);
-          ctx.lineTo(bx, by);
-          ctx.stroke();
+    /* ── Soft colored squares pulsing along the ring crests ───────────── */
+    function drawGlow() {
+      const ec = Math.floor(W / CELL);
+      const er = Math.floor(H / CELL);
+      for (let n = 0; n < er; n++) {
+        for (let t = 0; t < ec; t++) {
+          const cx = t * CELL + CELL * 0.5;
+          const cy = n * CELL + CELL * 0.5;
+          let i = 0;
+          for (const w of waves) {
+            const dist = Math.hypot(cx - w.x, cy - w.y);
+            const a = Math.exp(-Math.abs(dist - w.radius) / (w.band * 1.05));
+            const o = Math.exp(-Math.abs(dist - (w.radius - CELL * 3.4)) / (w.band * 1.2));
+            const s = Math.exp(-Math.abs(dist - (w.radius - CELL * 6.8)) / (w.band * 1.35));
+            i += (a + o * 0.62 + s * 0.38) * w.strength;
+          }
+          i = clamp(i, 0, 1);
+          if (i < 0.06) continue;
+          const hue = (Math.hypot(cx - waves[0].x, cy - waves[0].y) * 0.14 + waves[0].radius * 0.9) % 360;
+          const alpha = i * (DARK ? 0.06 : 0.08);
+          ctx.fillStyle = `hsla(${hue}, 46%, ${DARK ? 60 : 52}%, ${alpha})`;
+          ctx.fillRect(t * CELL + 1, n * CELL + 1, CELL - 2, CELL - 2);
         }
       }
     }
 
-    // ── node glows + cores ───────────────────────────────────────
-    for (const n of nodes) {
-      const nx          = n.x + ox * n.depth;
-      const ny          = n.y + oy * n.depth;
-      const pulseScale  = 1 + Math.sin(n.phase) * 0.22;  // subtle breathing
-      const glowR       = n.r * 9 * pulseScale;
+    /* ── Advance waves + draw the displaced, glowing glyphs ───────────── */
+    function drawGlyphs(time) {
+      const tmod = Math.sin(time / 950);
 
-      // Soft radial glow (cyan halo)
-      const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, glowR);
-      g.addColorStop(0,   `rgba(${CYAN.join(',')},0.38)`);
-      g.addColorStop(0.4, `rgba(${CYAN.join(',')},0.10)`);
-      g.addColorStop(1,   `rgba(${CYAN.join(',')},0)`);
-      ctx.beginPath();
-      ctx.arc(nx, ny, glowR, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
+      // Update + respawn waves.
+      for (let i = 0; i < waves.length; i++) {
+        const w = waves[i];
+        w.radius += w.speed;
+        const n = clamp(w.radius / w.targetRadius, 0, 1);
+        w.strength = w.baseStrength * (1 - n) * (1 - n);
+        if (w.radius >= w.targetRadius) {
+          const size = i === 0 ? 'small' : i === 1 ? 'medium' : 'large';
+          waves[i] = makeWave(size, i, { x: w.x, y: w.y });
+        }
+      }
 
-      // Bright centre dot
-      ctx.beginPath();
-      ctx.arc(nx, ny, n.r * pulseScale * 0.75, 0, Math.PI * 2);
-      ctx.fillStyle = '#ddfaff';
-      ctx.fill();
+      for (const gl of glyphs) {
+        gl.drift += 0.08;
+        if (Math.random() < 0.1) {
+          gl.col = (gl.col + (Math.random() < 0.5 ? -1 : 1) + cols) % cols;
+          gl.row = (gl.row + (Math.random() < 0.5 ? -1 : 1) + rows) % rows;
+        }
+        if (Math.random() < 0.012) {
+          gl.col = Math.floor(Math.random() * cols);
+          gl.row = Math.floor(Math.random() * rows);
+        }
+
+        const gx = gl.col * CELL + CELL * 0.5;
+        const gy = gl.row * CELL;          // note: NOT vertically centred
+        let intensity = 0, fx = 0, fy = 0, dist = 0;
+
+        for (const w of waves) {
+          const ddx = gx - w.x, ddy = gy - w.y;
+          dist = Math.hypot(ddx, ddy);
+          const ux = dist > 1e-4 ? ddx / dist : 0;
+          const uy = dist > 1e-4 ? ddy / dist : 0;
+          const d = Math.exp(-Math.abs(dist - w.radius) / w.band);
+          const f = Math.exp(-Math.abs(dist - (w.radius - CELL * 3.2)) / (w.band * 1.25));
+          const p = Math.exp(-Math.abs(dist - (w.radius - CELL * 6.2)) / (w.band * 1.4));
+          const m = dist * 0.065 - w.radius * 0.09;
+          const h = d + f * 0.82 + p * 0.62;
+          const g = Math.sin(m) * 0.1 * h;
+          intensity += Math.max(0, h + g) * w.strength;
+          const disp = (d * 1.1 + f * 0.78 + p * 0.48) * CELL * 0.7 * w.strength;
+          fx += ux * disp;
+          fy += uy * disp;
+        }
+
+        const px = gx + fx;
+        const py = gy + fy;
+        const vfade = clamp(1 - py / (H * 1.06), 0.22, 1);
+        const g = clamp(intensity * (0.82 + 0.12 * tmod), 0, 1) * vfade;
+        if (g < 0.006) continue;
+
+        const ci = ((Math.floor(gl.glyphOffset + time / 220 + gl.drift * 4 +
+                     dist * 0.045 + waves[2].radius * 0.04 + g * NG) % NG) + NG) % NG;
+        const ch  = GLYPHS[ci];
+        const hue = (gl.hueOffset + time * 0.045 + g * 90) % 360;
+
+        ctx.fillStyle   = `hsla(${hue}, 100%, ${DARK ? 78 : 46}%, ${clamp(0.05 + g * 0.72, 0, 0.86)})`;
+        ctx.shadowBlur  = 4 + g * 8;
+        ctx.shadowColor = `hsla(${hue}, 100%, ${DARK ? 72 : 46}%, ${0.2 + g * 0.24})`;
+        ctx.fillText(ch, px, py);
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+      ctx.globalAlpha = 1;
     }
 
-    drawScanlines();
-  }
+    /* ── Frame loop (24 fps cap, with translucent fade-trail) ─────────── */
+    function frame(time) {
+      if (!running) { raf = 0; return; }
+      if (time - last < FRAME_MS) { raf = requestAnimationFrame(frame); return; }
+      last = time;
 
-  // ── event wiring ──────────────────────────────────────────────
-  window.addEventListener('resize',    resize,                     { passive: true });
-  window.addEventListener('mousemove', function (e) {
-    mouseRaw.x = e.clientX;
-    mouseRaw.y = e.clientY;
-  }, { passive: true });
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = FADE;
+      ctx.fillRect(0, 0, W, H);
 
-  // Seed smoothed mouse at centre so the first frame has no offset jump
-  mouseRaw.x  = mouseSmth.x = window.innerWidth  / 2;
-  mouseRaw.y  = mouseSmth.y = window.innerHeight / 2;
+      drawGlow();
+      drawGrid();
+      drawGlyphs(time);
 
-  // ── bootstrap ─────────────────────────────────────────────────
-  resize();
-  requestAnimationFrame(draw);
+      raf = requestAnimationFrame(frame);
+    }
 
-}());
-</script>
+    /* ── Pause when the tab is hidden ─────────────────────────────────── */
+    function onVisibility() {
+      const vis = !document.hidden;
+      if (vis === running) return;
+      running = vis;
+      if (!running) { cancelAnimationFrame(raf); raf = 0; return; }
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+
+    resize();
+    if (running) raf = requestAnimationFrame(frame);
+
+    let rt = 0;
+    window.addEventListener('resize', () => {
+      clearTimeout(rt);
+      rt = setTimeout(resize, 120);
+    });
+    document.addEventListener('visibilitychange', onVisibility);
+  })();
+  </script>
 </body>
 </html>

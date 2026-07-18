@@ -1,0 +1,10 @@
+{
+  "title": "Rotating Rainbow Border Button",
+  "slug": "resend-rainbow-button",
+  "order": 8,
+  "sourceUrl": "https://resend.com/home",
+  "sourceName": "Resend",
+  "credit": "Resend",
+  "blurb": "A pill button whose thin gradient outline spins forever, with a blurred glow that blooms on hover.",
+  "technique": "This is the \"Announcing Resend Forward\" pill from Resend's hero, ported with the real CSS. The trick that makes a gradient *rotate* is a registered custom property:\n\n`@property --angle { syntax: \"<angle>\"; inherits: false; initial-value: 0deg; }`\n\nRegistering `--angle` as an `<angle>` type makes it **interpolatable**, so a `@keyframes rotate { to { --angle: 360deg } }` can smoothly tween it. A plain CSS variable would jump from 0 to 360 with no in-between frames; the typed `@property` is what lets `linear-gradient(var(--angle), …)` visibly spin.\n\nThe outer element carries `linear-gradient(var(--angle), #02fcef70 0%, #ffb52b70 50%, #a02bfe70 100%)` (Resend's real cyan→amber→violet, at ~44% alpha) and a 1px padding; an inner `<span>` painted the page's background color (`#0b0e14`) covers everything but that 1px rim, so only a thin rotating outline shows. The animation runs `30s linear infinite`.\n\nA `::after` pseudo-element holds a brighter, fully-opaque copy of the same rotating gradient with `filter: blur(20px)`, sat behind the pill at `opacity: 0`. On `:hover` it fades to `0.9` and stretches (`transform: scaleX(1.1)`), blooming a soft glow; the face also darkens slightly. Both the rim and the glow share the same `--angle` keyframe so they stay in lockstep."
+}
