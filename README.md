@@ -8,19 +8,26 @@ Built with [Astro](https://astro.build), **generated with
 [Claude Code](https://claude.com/claude-code)**, and inspired by
 [reactbits.dev](https://reactbits.dev).
 
-Every effect is an **independent recreation** of something seen on another site,
-with credit to the original. No proprietary source code was copied.
+Every effect is a **faithful recreation** of something seen on another site, with
+credit to the original. Where a site ships its effect as plain client-side
+CSS / JS / shaders, the demo ports that real browser-delivered code (distilled into
+a clean standalone file); where it ships a binary scene or video, the demo is an
+independent recreation of the look. Credit always goes to the original site.
 
 ## Effects
 
-| Effect | Seen on |
-|--------|---------|
-| Cyber Canvas — particle/network background | [chatgpt.com/cyber](https://chatgpt.com/cyber) |
-| Lighting, Dust & Grid — perspective grid + bloom + motes | [meshy.ai](https://www.meshy.ai/) |
-| Sneakers Text Decode — gibberish→readable text | [infisical.com](https://infisical.com/) |
-| Midjourney Text Swirl — particles swirling into text | [midjourney.com](https://www.midjourney.com/home) |
-| Electron Pulse Lines — pulses along SVG paths | [schematichq.com](https://schematichq.com/), [portkey.ai](https://portkey.ai/) |
-| Rotating Rubik's Cube — CSS 3D | [resend.com](https://resend.com/home) |
+| Effect | What it is | Seen on |
+|--------|------------|---------|
+| Cyber Ambient Overlay | A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header. | [ChatGPT](https://chatgpt.com/cyber) |
+| On-Command Grid Bloom | A skewed white grid blooms out of a lime light haze behind a bold heading, with a flowing gradient CTA whose conic border ring spins. | [Meshy](https://www.meshy.ai/) |
+| Midjourney Prompt Vortex | A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye. | [Midjourney](https://www.midjourney.com/home) |
+| Sneakers Text Decode | Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers. | [Infisical](https://infisical.com/) |
+| Electron Pulse Lines | Bright electron pulses race along circuit-board Bézier paths between glowing connected nodes. | [Schematic](https://schematichq.com/), [Portkey](https://portkey.ai/) |
+| Particle Text Vortex | Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word. | Original effect |
+| Black Rubik's Cube | An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light (Three.js). | [Resend](https://resend.com/home) |
+| Rotating Rainbow Border Button | A pill button whose thin gradient outline spins forever, with a blurred glow that blooms on hover. | [Resend](https://resend.com/home) |
+| Conic Gradient Sweep Border | A card whose border is a bright arc that sweeps around the perimeter, painted with a rotating conic gradient. | [Resend](https://resend.com/home) |
+| Vertical-Line Glyph Dither | A slowly tumbling extruded glyph, raymarched and re-rendered as vertical ASCII-style bars whose width tracks brightness, with a headline in front. | [CodeRabbit](https://app.coderabbit.ai/login) |
 
 ## Develop
 
