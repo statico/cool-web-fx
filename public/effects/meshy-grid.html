@@ -1,291 +1,272 @@
 <!doctype html>
+<!--
+  Meshy — "3D, On Command" hero/CTA section background
+  ─────────────────────────────────────────────────────────────────────────────
+  Faithful rebuild of the background behind Meshy's "3D, On Command" call-to-
+  action band (https://www.meshy.ai/). The real effect is NOT a perspective grid
+  or dust motes — it is a pure CSS/SVG composition:
+
+    • a 40px SVG <pattern> grid, skewed skew-y(-18deg), drawn in white/5 with
+      mix-blend-overlay, fading out top→bottom via a linear-gradient mask;
+    • 11 hand-placed "lit" grid cells (white/5) at fixed [col,row] coordinates;
+    • a lime gradient wash  from #e1f9a7/30 → #c5f955/30  masked by a
+      radial-gradient(farthest-side at top) so it blooms from the top center;
+    • a big blurred white blob (blur 26px) as a soft volumetric light core;
+    • the whole group sits at low opacity over a near-black background.
+
+  The only animation in the real section is the CTA button: a flowing lime
+  gradient (cta-flow, 5s) and a conic-gradient border ring that spins (7s).
+  Both are reproduced verbatim. Everything below is self-contained — no CDN,
+  no fonts, no images. Real values extracted from the Meshy build chunk
+  11wz9_xx-0j_m.js and stylesheet 14ac6qycc6c_g.css.
+-->
 <html lang="en">
 <head>
   <link rel="icon" href="data:,">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lighting, Dust &amp; Grid</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meshy — 3D, On Command</title>
   <style>
-    /* ── Reset & full-viewport layout ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* @property lets the conic border angle animate (real site uses this) */
+    @property --cta-border-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:           #0e0e0e;   /* --color-bg-strong */
+      --bg2:          #181818;   /* --color-bg-base   */
+      --accent:       #c5f955;   /* --color-accent-base */
+      --accent-light: #e1f9a7;
+    }
 
     html, body {
-      width: 100%; height: 100%;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
-      background: #070711;   /* near-black, slightly blue-tinted */
+      background: var(--bg);
+      font-family: "Inter Tight", Inter, -apple-system, BlinkMacSystemFont,
+                   "Segoe UI", Roboto, system-ui, sans-serif;
     }
 
-    /*
-     * The light-bloom layer sits behind the canvas and is drawn entirely
-     * with CSS radial gradients — no external resources needed.
-     */
-    #bloom {
-      position: fixed;
-      inset: 0;
-      /* Primary upper-centre glow: indigo → transparent */
+    /* ── Full-bleed section ─────────────────────────────────────────────── */
+    .section {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 60px;
+      /* faint top-down lift toward the bloom, like the section gradient */
       background:
-        radial-gradient(ellipse 70% 55% at 50% -5%,  rgba(99,102,241,0.28) 0%, transparent 72%),
-        radial-gradient(ellipse 45% 35% at 50%  0%,   rgba(139,92,246,0.22) 0%, transparent 60%),
-        radial-gradient(ellipse 55% 40% at 50%  8%,   rgba(34,211,238,0.10) 0%, transparent 65%);
-      pointer-events: none;
-      z-index: 0;
+        radial-gradient(120% 80% at 50% -10%, #15170f 0%, var(--bg) 45%),
+        var(--bg);
+      overflow: hidden;
     }
 
-    /* Canvas occupies the same stacking space, above the CSS bloom */
-    #fx {
-      position: fixed;
+    /* ── Background light group ─────────────────────────────────────────────
+       Real site renders this group at opacity 0.15. It is lifted here so the
+       grid + bloom actually read in the gallery thumbnail; colours, geometry,
+       masks and relative layer opacities are kept exactly as captured. ────── */
+    .bg {
+      position: absolute;
       inset: 0;
-      display: block;
+      z-index: 0;
+      opacity: 0.5;
+      pointer-events: none;
+      /* outer radial mask: radial-gradient(800px 400px at top, white 20%, transparent) */
+      -webkit-mask-image: radial-gradient(800px 400px at top, #fff 20%, transparent);
+              mask-image: radial-gradient(800px 400px at top, #fff 20%, transparent);
+    }
+
+    /* The skewed "beam" that holds the grid + lime wash.
+       Real: top-0 left-1/2 -ml-152 h-100 w-325  →  width 1300px, height 400px. */
+    .beam {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1300px;
+      height: 400px;
+      transform: translateX(-50%);
+      /* fade the whole beam top→bottom */
+      -webkit-mask-image: linear-gradient(#fff, transparent);
+              mask-image: linear-gradient(#fff, transparent);
+    }
+
+    /* Lime gradient wash, masked to bloom from the top-centre. */
+    .wash {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to right,
+                  rgba(225, 249, 167, 0.30),   /* #e1f9a7 / 30 */
+                  rgba(197, 249, 85, 0.30));   /* #c5f955 / 30 */
+      -webkit-mask-image: radial-gradient(farthest-side at top, #fff, transparent);
+              mask-image: radial-gradient(farthest-side at top, #fff, transparent);
+    }
+
+    /* The grid SVG: -inset-y-1/2 h-[200%], skewed -18deg, mix-blend overlay. */
+    .grid {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -50%;
+      width: 100%;
+      height: 200%;
+      transform: skewY(-18deg);
+      fill: rgba(255, 255, 255, 0.05);     /* fill-white/5  → lit cells   */
+      stroke: rgba(255, 255, 255, 0.05);   /* stroke-white/5 → grid lines */
+      mix-blend-mode: overlay;
+      overflow: visible;
+    }
+
+    /* Soft white volumetric light core (real: blurred path, blur 26px). */
+    .lightblob {
+      position: absolute;
+      top: -40px;
+      left: 50%;
+      width: 1113px;
+      transform: translateX(-50%);
+      fill: #fff;
+      filter: blur(26px);
+      opacity: 0.5;
+    }
+
+    /* ── Heading ────────────────────────────────────────────────────────── */
+    .heading {
+      position: relative;
       z-index: 1;
+      color: #fff;                     /* --color-label-title */
+      font-weight: 700;
+      font-size: clamp(2.4rem, 9vw, 7rem);
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      text-align: center;
+      filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5));   /* drop-shadow-lg */
+    }
+    .heading .accent { color: var(--accent); }
+
+    /* ── CTA button (flowing lime gradient + spinning conic ring) ───────── */
+    .cta {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 50px;
+      padding: 0 25px 0 30px;
+      border: 0;
+      border-radius: 9999px;
+      cursor: pointer;
+      user-select: none;
+      font: 700 18px/1.1 inherit;
+      letter-spacing: -0.02em;
+      color: #000;                     /* --color-accent-label */
+      /* real: linear-gradient(155.056deg,#AAFFCA 0%,#BAFF4A 50%,#AAFFCA 100%) */
+      background: linear-gradient(155.056deg, #AAFFCA 0%, #BAFF4A 50%, #AAFFCA 100%);
+      background-size: 200% 200%;
+      animation: cta-flow 5s ease-in-out infinite;
+      transition: box-shadow 0.3s ease-out;
+    }
+    .cta:hover {
+      background: linear-gradient(155.056deg, #BAFF4A 0%, #AAFFCA 50%, #BAFF4A 100%);
+      box-shadow: 0 0 30px rgba(170, 255, 202, 0.35);
+    }
+
+    /* Conic-gradient border ring, masked to just the 2px rim, spins 7s. */
+    .cta .ring {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      padding: 2px;
+      background: conic-gradient(from var(--cta-border-angle),
+                  #fff0 0deg, #fffffff2 45deg, #fff0 95deg, #fff0 360deg);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      animation: cta-border-spin 7s linear infinite;
+    }
+
+    /* Looping arrow */
+    .cta .arrowbox { position: relative; display: inline-flex; width: 20px; height: 20px; overflow: hidden; }
+    .cta .arrows {
+      display: inline-flex; width: 40px; flex-shrink: 0; transform: translateX(-20px);
+    }
+    .cta:hover .arrows { animation: cta-arrow-loop 1.5s linear infinite; }
+    .cta .arrows svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    @keyframes cta-flow {
+      0%, 100% { background-position: 0 0; }
+      50%      { background-position: 100% 100%; }
+    }
+    @keyframes cta-border-spin { to { --cta-border-angle: 360deg; } }
+    @keyframes cta-arrow-loop  { to { transform: translateX(0); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cta, .cta .ring { animation: none; }
     }
   </style>
 </head>
 <body>
-  <div id="bloom"></div>
-  <canvas id="fx"></canvas>
+  <section class="section">
 
-  <script>
-    /* =========================================================
-     *  meshy-grid — Perspective Floor Grid + Light Bloom + Dust
-     *  Self-contained Canvas 2D, no external deps.
-     * ========================================================= */
+    <!-- ── Background light group (grid + lime bloom + light core) ──────── -->
+    <div class="bg">
+      <!-- soft white volumetric core behind the heading -->
+      <svg class="lightblob" viewBox="0 0 1113 440" aria-hidden="true">
+        <path d="M.016 439.5s-9.5-300 434-300S882.516 20 882.516 20V0h230.004v439.5H.016Z"></path>
+      </svg>
 
-    'use strict';
+      <!-- skewed beam: lime wash + the grid pattern -->
+      <div class="beam">
+        <div class="wash"></div>
+        <svg class="grid" aria-hidden="true">
+          <defs>
+            <!-- 40×40 grid cell; the L-shaped path draws left + top edges -->
+            <pattern id="meshyGrid" width="40" height="40" patternUnits="userSpaceOnUse" x="-12" y="4">
+              <path d="M.5 40V.5H40" fill="none"></path>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" stroke-width="0" fill="url(#meshyGrid)"></rect>
+          <!-- 11 lit cells, offset (-12,4) to match the pattern origin -->
+          <svg x="-12" y="4" class="overflow-visible">
+            <rect stroke-width="0" width="41" height="41" x="560" y="160"></rect>
+            <rect stroke-width="0" width="41" height="41" x="480" y="200"></rect>
+            <rect stroke-width="0" width="41" height="41" x="640" y="240"></rect>
+            <rect stroke-width="0" width="41" height="41" x="800" y="320"></rect>
+            <rect stroke-width="0" width="41" height="41" x="880" y="360"></rect>
+            <rect stroke-width="0" width="41" height="41" x="960" y="280"></rect>
+            <rect stroke-width="0" width="41" height="41" x="120" y="120"></rect>
+            <rect stroke-width="0" width="41" height="41" x="80"  y="40"></rect>
+            <rect stroke-width="0" width="41" height="41" x="280" y="120"></rect>
+            <rect stroke-width="0" width="41" height="41" x="400" y="240"></rect>
+            <rect stroke-width="0" width="41" height="41" x="480" y="80"></rect>
+          </svg>
+        </svg>
+      </div>
+    </div>
 
-    // ── Canvas setup ─────────────────────────────────────────────
-    const canvas = document.getElementById('fx');
-    const ctx    = canvas.getContext('2d');
+    <!-- ── Foreground content ───────────────────────────────────────────── -->
+    <h2 class="heading">3D, <span class="accent">On Command</span></h2>
 
-    // Cap pixel ratio at 2 to keep fill-rate manageable on HiDPI.
-    const DPR = Math.min(window.devicePixelRatio || 1, 2);
-
-    let W = 0;   // logical width  (CSS px)
-    let H = 0;   // logical height (CSS px)
-
-    function resize() {
-      W = window.innerWidth;
-      H = window.innerHeight;
-      canvas.width  = Math.round(W * DPR);
-      canvas.height = Math.round(H * DPR);
-      canvas.style.width  = W + 'px';
-      canvas.style.height = H + 'px';
-      ctx.scale(DPR, DPR);
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    // ── Timing ───────────────────────────────────────────────────
-    let startTime = performance.now();
-
-    // ── Perspective grid constants ────────────────────────────────
-    /*
-     * The grid is rendered on the "floor" plane using a simple perspective
-     * projection: a world-space point (wx, wz) is projected to screen space
-     * with a single-point-perspective transform.
-     *
-     * Vanishing point  VP = (W/2, horizonY)
-     * Camera eye is at world height `camY` above the floor.
-     * Focal length `focalLen` (in world units) controls field-of-view.
-     *
-     * Projection formula:
-     *   screenX = VP.x + wx * (focalLen / wz)
-     *   screenY = VP.y + camY * (focalLen / wz)
-     */
-    const GRID_COLOR_NEAR = 'rgba(99,102,241,0.75)';   // bright indigo close-up
-    const GRID_COLOR_FAR  = 'rgba(99,102,241,0.0)';    // fades to invisible at horizon
-    const GRID_CELLS      = 28;   // columns on each side of centre line
-    const GRID_CELL_SIZE  = 3.5;  // world units between lines
-    const CAM_Y           = 5.0;  // camera height above the floor plane
-    const FOCAL_LEN       = 6.0;  // perspective focal length (controls FOV)
-    const HORIZON_FRAC    = 0.48; // fraction of screen height where horizon sits
-
-    // ── Dust-mote parameters ──────────────────────────────────────
-    const PARTICLE_COUNT  = 160;  // capped for performance
-
-    /*
-     * Each mote has:
-     *   x, y  — logical screen position
-     *   vx,vy — velocity (px/s)
-     *   r     — radius (px)
-     *   alpha — base opacity
-     *   phase — for gentle pulsing
-     *   depth — 0..1 parallax factor (further = slower, smaller, dimmer)
-     */
-    const motes = [];
-
-    function spawnMote(i) {
-      const depth = 0.15 + Math.random() * 0.85;   // 0.15 = near, 1.0 = far
-      const speed = (0.06 + Math.random() * 0.12) * (1 - depth * 0.5);
-
-      motes[i] = {
-        x:     Math.random() * W,
-        y:     H * 0.3 + Math.random() * H * 0.7,  // mostly in lower 70 %
-        vx:    (Math.random() - 0.5) * speed * 18,
-        vy:    -(speed * 28 + Math.random() * 12),  // drift upward
-        r:     (0.4 + (1 - depth) * 2.0),           // near motes are larger
-        alpha: 0.15 + (1 - depth) * 0.5,
-        phase: Math.random() * Math.PI * 2,
-        depth: depth,
-      };
-    }
-
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      spawnMote(i);
-      // randomise initial y so they don't all start at the bottom
-      motes[i].y = Math.random() * H;
-    }
-
-    // ── Perspective projection helper ────────────────────────────
-    function project(wx, wz, horizonY, focalLen) {
-      /*
-       * wx  = world X (positive = right of centre)
-       * wz  = world Z depth (positive = away from camera; must be > 0)
-       * Returns { sx, sy, scale } — screen-space x/y and 1/wz scale.
-       */
-      const scale = focalLen / wz;
-      return {
-        sx:    W / 2 + wx * scale,
-        sy:    horizonY + CAM_Y * scale,
-        scale: scale,
-      };
-    }
-
-    // ── Draw the perspective floor grid ──────────────────────────
-    function drawGrid(t) {
-      const horizonY  = H * HORIZON_FRAC;
-
-      // Scroll offset: grid lines drift toward the viewer at ~0.4 world-units/s.
-      const scrollOffset = (t * 0.4) % GRID_CELL_SIZE;
-
-      // World Z extents (how far the grid reaches into the distance).
-      const Z_NEAR = 0.3;
-      const Z_FAR  = 90;
-
-      // How many depth-lines to draw (Z / cell_size).
-      const Z_STEPS = 52;
-
-      // ── Longitudinal lines (running away from camera, left/right) ──
-      for (let col = -GRID_CELLS; col <= GRID_CELLS; col++) {
-        const wx = col * GRID_CELL_SIZE;
-
-        // Project near & far ends of this column strip.
-        const near = project(wx, Z_NEAR, horizonY, FOCAL_LEN);
-        const far  = project(wx, Z_FAR,  horizonY, FOCAL_LEN);
-
-        // Fade based on distance from centre column (outer columns dimmer).
-        const colFrac = Math.abs(col) / GRID_CELLS;
-        const sideFade = Math.max(0, 1 - colFrac * colFrac * 1.4);
-
-        const grad = ctx.createLinearGradient(near.sx, near.sy, far.sx, far.sy);
-        grad.addColorStop(0, `rgba(99,102,241,${(0.65 * sideFade).toFixed(3)})`);
-        grad.addColorStop(1, 'rgba(99,102,241,0)');
-
-        ctx.beginPath();
-        ctx.moveTo(near.sx, near.sy);
-        ctx.lineTo(far.sx,  far.sy);
-        ctx.strokeStyle = grad;
-        ctx.lineWidth   = Math.max(0.3, 1.5 * sideFade);
-        ctx.stroke();
-      }
-
-      // ── Lateral lines (cross-hatching perpendicular to camera) ──
-      for (let step = 0; step <= Z_STEPS; step++) {
-        // wz increases logarithmically so lines bunch near horizon naturally.
-        const t_step = step / Z_STEPS;
-        // Map to Z range with a bias toward the near end for visible grid.
-        const wz = Z_NEAR + (Z_FAR - Z_NEAR) * (t_step * t_step);
-
-        // Apply scroll: shift each line by the running offset.
-        const wzScrolled = wz - (scrollOffset * t_step * 3.0);
-        if (wzScrolled <= 0) continue;
-
-        const leftPt  = project(-GRID_CELLS * GRID_CELL_SIZE, wzScrolled, horizonY, FOCAL_LEN);
-        const rightPt = project( GRID_CELLS * GRID_CELL_SIZE, wzScrolled, horizonY, FOCAL_LEN);
-
-        // Opacity fades with distance (more pronounced fade toward horizon).
-        const distFade = Math.max(0, 1 - t_step * t_step * 2.5);
-
-        ctx.beginPath();
-        ctx.moveTo(leftPt.sx,  leftPt.sy);
-        ctx.lineTo(rightPt.sx, rightPt.sy);
-        ctx.strokeStyle = `rgba(99,102,241,${(0.55 * distFade).toFixed(3)})`;
-        ctx.lineWidth   = Math.max(0.2, 1.2 * distFade);
-        ctx.stroke();
-      }
-
-      // ── Subtle floor glow (horizontal gradient at base of grid) ──
-      const glowH = (H - horizonY) * 0.35;
-      const glowGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + glowH);
-      glowGrad.addColorStop(0, 'rgba(99,102,241,0.08)');
-      glowGrad.addColorStop(1, 'rgba(99,102,241,0)');
-      ctx.fillStyle = glowGrad;
-      ctx.fillRect(0, horizonY, W, glowH);
-    }
-
-    // ── Draw a single dust mote ───────────────────────────────────
-    function drawMote(m, t) {
-      // Gentle pulse on the alpha channel.
-      const pulse = 0.75 + 0.25 * Math.sin(t * 0.8 + m.phase);
-      const a     = m.alpha * pulse;
-
-      // Mote colour is a mix of indigo and cyan, tinted by depth.
-      const cyanMix = 0.3 + m.depth * 0.4;
-      const r = Math.round(99  + cyanMix * (34  - 99));    // ~76
-      const g = Math.round(102 + cyanMix * (211 - 102));   // ~143
-      const b = Math.round(241 + cyanMix * (238 - 241));   // ~240
-
-      // Soft radial gradient per mote (bloom halo).
-      const grad = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 3.5);
-      grad.addColorStop(0,   `rgba(${r},${g},${b},${a.toFixed(3)})`);
-      grad.addColorStop(0.35,`rgba(${r},${g},${b},${(a * 0.4).toFixed(3)})`);
-      grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, m.r * 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-    }
-
-    // ── Update mote positions ─────────────────────────────────────
-    function updateMotes(dt) {
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        const m = motes[i];
-        m.x += m.vx * dt;
-        m.y += m.vy * dt;
-
-        // Respawn mote when it drifts off-screen at the top or sides.
-        if (m.y < -20 || m.x < -30 || m.x > W + 30) {
-          spawnMote(i);
-          motes[i].y = H + 10;   // re-enter from the bottom
-          motes[i].x = Math.random() * W;
-        }
-      }
-    }
-
-    // ── Main render loop ──────────────────────────────────────────
-    let lastTime = performance.now();
-
-    function frame(now) {
-      const elapsed = (now - startTime) / 1000;   // seconds since start
-      const dt      = Math.min((now - lastTime) / 1000, 0.05);  // cap delta at 50 ms
-      lastTime = now;
-
-      // Clear canvas (background colour already set via body CSS).
-      ctx.clearRect(0, 0, W, H);
-
-      // 1. Perspective floor grid.
-      drawGrid(elapsed);
-
-      // 2. Dust motes (above the grid, below the bloom — bloom is CSS layer).
-      updateMotes(dt);
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        drawMote(motes[i], elapsed);
-      }
-
-      requestAnimationFrame(frame);
-    }
-
-    requestAnimationFrame(frame);
-  </script>
+    <button class="cta" type="button">
+      <span class="ring" aria-hidden="true"></span>
+      Start Creating
+      <span class="arrowbox" aria-hidden="true">
+        <span class="arrows">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h13M13 6l6 6-6 6"></path>
+          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h13M13 6l6 6-6 6"></path>
+          </svg>
+        </span>
+      </span>
+    </button>
+  </section>
 </body>
 </html>

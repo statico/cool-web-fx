@@ -1,284 +1,413 @@
 <!doctype html>
+<!--
+  Sneakers Text — Infisical cipher-scramble DOM rebuild
+  ─────────────────────────────────────────────────────────────────────────────
+  Faithful port of Infisical's character-scramble effect (module 49899 in
+  https://infisical.com/_next/static/chunks/pages/index-4fc63f88002b15b5.js).
+
+  Every text node is a live DOM element whose textContent is updated
+  character-by-character on each requestAnimationFrame — no <canvas>.
+  Characters stay the same width because the font is monospace throughout.
+
+  Extracted parameters (exact, from module 49899):
+    • Character pool: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+                      0123456789!@#$%&*?/<>+=-   (76 chars total)
+    • stagger       = 70 ms   (per-char reveal delay; compressed if text is long)
+    • revealPerChar = 220 ms  (initial hold before first char locks in)
+    • glyphInterval = 80 ms   (how often each unresolved glyph swaps)
+    • maxDuration   = 1500 ms (total animation cap; stagger is recalculated)
+    • IntersectionObserver threshold = 0.4  (we trigger on load instead)
+
+  Completely standalone — no CDN, no web fonts, no external assets.
+-->
 <html lang="en">
 <head>
   <link rel="icon" href="data:,">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sneakers Text Decode</title>
   <style>
-    /* ─── Reset & base ─── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       width: 100%;
       height: 100%;
-      background: #0a0c0f;
-      color: #4ade80;           /* terminal green */
-      font-family: "Courier New", Courier, "Lucida Console", monospace;
+      overflow: hidden;
+      background: #080a0e;
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
+      font-family: 'Consolas', 'SF Mono', 'Monaco', 'Courier New', monospace;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ─── Stage ─── */
-    #stage {
-      position: relative;
-      text-align: center;
-      padding: 2rem;
+    /* ── Outer container ──────────────────────────────────────────────── */
+    .panel {
+      width: min(720px, 88vw);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
       user-select: none;
     }
 
-    /* ─── The main text element ─── */
-    #scramble-target {
-      font-size: clamp(1.6rem, 5vw, 3.2rem);
-      font-weight: 700;
-      letter-spacing: 0.18em;
-      line-height: 1.2;
-      /* Glow – layered text-shadow for authentic CRT look */
-      text-shadow:
-        0 0 4px  #4ade80,
-        0 0 10px #4ade80,
-        0 0 22px #22c55e,
-        0 0 40px #16a34a;
-      white-space: pre;        /* keep spaces/newlines if used */
-      min-height: 1.3em;       /* prevent layout jump while empty */
+    /* ── Eyebrow tag ──────────────────────────────────────────────────── */
+    .eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: #a3e635;
+      opacity: 0.72;
+      margin-bottom: 28px;
+      min-height: 13px;
+      text-transform: uppercase;
     }
 
-    /* ─── Subtle scanline overlay (CRT effect) ─── */
-    #stage::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background: repeating-linear-gradient(
-        to bottom,
-        transparent 0px,
-        transparent 2px,
-        rgba(0, 0, 0, 0.06) 2px,
-        rgba(0, 0, 0, 0.06) 4px
-      );
-      pointer-events: none;
-      z-index: 10;
+    /* ── Hero headline (cycles through phrases) ───────────────────────── */
+    .headline {
+      font-size: clamp(26px, 3.8vw, 46px);
+      font-weight: 600;
+      color: #edf2f7;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      min-height: 1.15em;
     }
 
-    /* ─── Reduced-motion: skip all animation, show plain text ─── */
+    /* ── Secondary line ───────────────────────────────────────────────── */
+    .secondary {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #4a5568;
+      letter-spacing: 0.04em;
+      min-height: 16px;
+    }
+
+    /* ── Divider ──────────────────────────────────────────────────────── */
+    .divider {
+      margin-top: 36px;
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* ── Label grid (2 columns, 4 rows) ───────────────────────────────── */
+    .label-grid {
+      margin-top: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .label-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Right column cells get left padding and a vertical separator */
+    .label-cell:nth-child(even) {
+      padding-left: 28px;
+      border-left: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .label-cell:nth-child(odd) {
+      padding-right: 28px;
+    }
+
+    /* Dot indicator — visible only when that cell's text is decoding */
+    .dot {
+      flex-shrink: 0;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #a3e635;
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+    .dot.active { opacity: 0.55; }
+
+    .label-text {
+      font-size: 10px;
+      letter-spacing: 0.07em;
+      color: #718096;
+      text-transform: uppercase;
+      min-height: 13px;
+      /* Prevent layout reflow as random glyphs swap in/out */
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    /* ── Reduced-motion: skip scramble, show plain text ─────────────── */
     @media (prefers-reduced-motion: reduce) {
-      #scramble-target {
-        text-shadow: none;
-        color: #4ade80;
+      .eyebrow, .headline, .secondary, .label-text {
+        /* Content will be set by JS but animation won't run */
       }
-      #stage::after { display: none; }
+      .dot { display: none; }
     }
-
-    /* ─── Optional: dim cursor blink below the text ─── */
-    #cursor {
-      display: inline-block;
-      margin-top: 1.2rem;
-      width: 0.55em;
-      height: 1.1em;
-      background: #4ade80;
-      box-shadow: 0 0 8px #4ade80;
-      vertical-align: middle;
-      animation: blink 1s step-end infinite;
-    }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-    @media (prefers-reduced-motion: reduce) { #cursor { animation: none; } }
   </style>
 </head>
 <body>
+  <div class="panel">
+    <div class="eyebrow"   id="eyebrow"></div>
+    <div class="headline"  id="headline"></div>
+    <div class="secondary" id="secondary"></div>
+    <hr class="divider">
+    <div class="label-grid" id="label-grid"></div>
+  </div>
 
-<div id="stage">
-  <div id="scramble-target"></div>
-  <div><span id="cursor"></span></div>
-</div>
+  <script>
+  /* =====================================================================
+     Sneakers Text — Infisical cipher engine (DOM edition)
+     =====================================================================
 
-<script>
-  /*
-   * ═══════════════════════════════════════════════════════════════
-   *  TextScramble — reusable Sneakers-movie text-decode class
-   * ───────────────────────────────────────────────────────────────
-   *  Usage:
-   *    const fx = new TextScramble(element);
-   *    fx.setText("HELLO WORLD").then(() => { ... });
-   *
-   *  Each character cycles through random glyphs on every rAF tick.
-   *  A per-character counter ("resolve index") increments staggered
-   *  so characters lock from left to right.
-   * ═══════════════════════════════════════════════════════════════
-   */
-  class TextScramble {
-    /**
-     * @param {HTMLElement} el  – the element whose textContent we animate
-     * @param {object}      [opts]
-     * @param {string}      [opts.charset]    – pool of glyphs to sample from
-     * @param {number}      [opts.speed]      – rAF ticks per character resolve step (lower = faster)
-     * @param {number}      [opts.stagger]    – ticks between each char starting to lock
-     */
-    constructor(el, opts = {}) {
-      this.el = el;
+     Architecture
+     ────────────
+     1. scrambleTo(el, text, onDone) — core animates el.textContent from
+        random glyphs → real text using exact Infisical timing math.
+     2. runCycle() — orchestrates the staggered reveal sequence of eyebrow →
+        headline → secondary → 8 label cells, then restarts after a pause.
+     3. Content arrays of real phrases extracted from infisical.com.
 
-      // Glyph pool: alphanumeric + punctuation that reads as "cyber noise"
-      this.charset = opts.charset ??
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*<>?/\\|{}[]~-=+_";
+     All animation is DOM text via requestAnimationFrame (no canvas).
+  ===================================================================== */
+  (function () {
+    'use strict';
 
-      // How many rAF frames we spend randomly cycling before locking a char.
-      // Larger = more chaotic scramble per character.
-      this.speed   = opts.speed   ?? 3;   // ticks a char scrambles before lock
-      this.stagger = opts.stagger ?? 2;   // ticks between adjacent chars locking
+    /* ── Exact character pool from Infisical module 49899 ─────────────── */
+    const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*?/<>+=-';
 
-      this._frameId  = null;   // rAF handle for cleanup
-      this._resolve  = null;   // Promise resolver, set in setText()
-    }
+    /* ── Exact timing params (defaults from module 49899) ─────────────── */
+    const STAGGER      = 70;   // ms per-char stagger between reveals
+    const REVEAL_DELAY = 220;  // ms before the FIRST character snaps into place
+    const GLYPH_INT    = 80;   // ms between random glyph swaps per unresolved char
+    const MAX_DUR      = 1500; // ms total cap (stagger is compressed for long text)
 
-    /** Pick a random glyph from the pool */
-    _rand() {
-      return this.charset[Math.floor(Math.random() * this.charset.length)];
-    }
+    /* ── Core scramble function ───────────────────────────────────────── */
+    // Animates el.textContent: all chars scramble simultaneously; each one
+    // snaps to its real value at (index × r + REVEAL_DELAY) ms.
+    // Returns a cancel handle (call it to abort mid-flight).
+    function scrambleTo(el, text, onDone) {
+      const len = text.length;
+      if (len === 0) { el.textContent = ''; if (onDone) onDone(); return () => {}; }
 
-    /**
-     * Animate el's text from gibberish → target string.
-     * @param  {string}  text   – the final text to reveal
-     * @returns {Promise<void>}  – resolves when every character has locked
-     */
-    setText(text) {
-      // Cancel any in-flight animation
-      if (this._frameId !== null) {
-        cancelAnimationFrame(this._frameId);
-        this._frameId = null;
-      }
-      if (this._resolve) {
-        this._resolve();        // resolve the previous promise immediately
-        this._resolve = null;
-      }
+      // Infisical's stagger-compression formula — keeps total ≤ MAX_DUR
+      const r = (len * STAGGER + REVEAL_DELAY + 200 > MAX_DUR && len > 0)
+        ? Math.max(0, (MAX_DUR - REVEAL_DELAY - 200) / len)
+        : STAGGER;
+      const totalDur = len * r + REVEAL_DELAY + 200;
 
-      return new Promise((resolve) => {
-        this._resolve = resolve;
+      // Per-character scramble state
+      const charState = text.split('').map(() => ({
+        lastSwap: 0,
+        glyph: CHARS[Math.floor(Math.random() * CHARS.length)],
+      }));
 
-        const chars = text.split("");   // target characters
-        const len   = chars.length;
+      const start = performance.now();
+      let raf = null;
+      let cancelled = false;
 
-        /*
-         * State per character:
-         *   locked  – boolean: has this char settled into its final glyph?
-         *   tick    – frame counter; when tick reaches `speed`, we check whether
-         *             it's time for this char to lock (based on its index × stagger)
-         */
-        const locked = new Array(len).fill(false);
-        const ticks  = new Array(len).fill(0);
+      function tick(now) {
+        if (cancelled) return;
+        const s = now - start;
+        let out = '';
 
-        // How many total ticks before the last character locks
-        const totalTicks = len * this.stagger + this.speed;
-        let   elapsed    = 0;
+        for (let i = 0; i < len; i++) {
+          const ch = text[i];
 
-        const frame = () => {
-          elapsed++;
+          // Spaces always pass through instantly (Infisical behaviour)
+          if (ch === ' ') { out += ' '; continue; }
 
-          // Build the output string for this frame
-          let output = "";
-          let allDone = true;
-
-          for (let i = 0; i < len; i++) {
-            const ch = chars[i];
-
-            // Preserve spaces and newlines without scrambling
-            if (ch === " " || ch === "\n") {
-              output += ch;
-              continue;
-            }
-
-            if (locked[i]) {
-              // Already settled — show the real character
-              output += ch;
-              continue;
-            }
-
-            // Should this char lock now?
-            if (elapsed >= i * this.stagger + this.speed) {
-              locked[i] = true;
-              output += ch;
-              continue;
-            }
-
-            // Still scrambling — show a random glyph
-            allDone  = false;
-            output  += this._rand();
-          }
-
-          this.el.textContent = output;
-
-          if (allDone || elapsed > totalTicks + 10) {
-            // Make absolutely sure we end on the real text
-            this.el.textContent = text;
-            this._frameId = null;
-            const cb = this._resolve;
-            this._resolve = null;
-            cb();
+          if (s >= i * r + REVEAL_DELAY) {
+            // Character has reached its reveal time — lock it
+            out += ch;
           } else {
-            this._frameId = requestAnimationFrame(frame);
+            // Still scrambling: swap glyph every GLYPH_INT ms
+            const c = charState[i];
+            if (s - c.lastSwap >= GLYPH_INT) {
+              c.glyph = CHARS[Math.floor(Math.random() * CHARS.length)];
+              c.lastSwap = s;
+            }
+            out += c.glyph;
           }
-        };
+        }
 
-        this._frameId = requestAnimationFrame(frame);
-      });
+        el.textContent = out;
+
+        if (s < totalDur) {
+          raf = requestAnimationFrame(tick);
+        } else {
+          // Snap to final real text (cleans up any floating-point timing edge cases)
+          el.textContent = text;
+          if (onDone) onDone();
+        }
+      }
+
+      raf = requestAnimationFrame(tick);
+      return function cancel() {
+        cancelled = true;
+        if (raf !== null) { cancelAnimationFrame(raf); raf = null; }
+      };
     }
-  }
 
-  /* ──────────────────────────────────────────────────────────────
-   *  Demo loop — cycles through phrases with hold + transition
-   * ────────────────────────────────────────────────────────────── */
+    /* ── Phrase arrays (real content from infisical.com) ──────────────── */
+    const EYEBROW_PHRASES = [
+      'INFISICAL.COM / CIPHER EFFECT',
+      'SECURITY PLATFORM / DECODE SEQUENCE',
+      'INFISICAL.COM / SECRETS ENGINE',
+      'SECURITY PLATFORM / CERTIFICATE MGT',
+    ];
 
-  const phrases = [
-    "SECRETS MANAGED",
-    "ACCESS GRANTED",
-    "DECRYPTING...",
-    "VAULT UNLOCKED",
-    "THE QUIETER YOU BECOME",
-    "THE MORE YOU CAN HEAR",
-    "ZERO KNOWLEDGE",
-    "END-TO-END ENCRYPTED",
-  ];
+    const HEADLINE_PHRASES = [
+      'Secrets Management',
+      'Certificate Management',
+      'Privileged Access Management',
+      'Secret Rotation + Dynamic Secrets',
+      'Granular Access Controls',
+      'AI Agent Security',
+    ];
 
-  const HOLD_MS   = 1600;   // how long to display readable text before next phrase
-  const DELAY_MS  = 200;    // brief pause between phrases
+    const SECONDARY_PHRASES = [
+      'One source of truth for every application secret.',
+      'Run your private PKI on autopilot.',
+      'Just-in-time entry to your most critical systems.',
+      'Rotate credentials on a schedule and issue short-lived secrets.',
+      'Scope access to secrets by environment, path, and identity.',
+      'Brokered access eliminates credential exfiltration risk.',
+    ];
 
-  const el = document.getElementById("scramble-target");
-  const fx = new TextScramble(el);
+    // 8 grid labels per cycle (3 complete sets, cycling)
+    const LABEL_SETS = [
+      [
+        'Granular Access Controls', 'Secret Rotation',
+        'Approval Workflows',       'Dynamic Secrets',
+        'PKI Dashboard',            'Certificate Discovery',
+        'Session Recording',        'Credential Rotation',
+      ],
+      [
+        'Certificate Sync',         'OIDC Authentication',
+        'Audit Logs',               'Enterprise SSO',
+        'Secret Versioning',        'Access Policies',
+        'Integrations',             'Enterprise Ready',
+      ],
+      [
+        'AWS Integration',          'GitHub Actions',
+        'Kubernetes Secrets',       'Docker Compose',
+        'Terraform Provider',       'GitLab CI',
+        'Azure Key Vault',          'Google Cloud',
+      ],
+    ];
 
-  // ── Reduced-motion short-circuit ──────────────────────────────
-  // If the user has asked for reduced motion, simply cycle through
-  // phrases instantly with no scramble animation.
-  const prefersReducedMotion =
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    /* ── Build the label grid DOM ─────────────────────────────────────── */
+    const gridEl = document.getElementById('label-grid');
+    const labelEls = [];
+    const dotEls   = [];
 
-  if (prefersReducedMotion) {
-    // Plain, no-animation rotation
-    let idx = 0;
-    const rotatePlain = () => {
-      el.textContent = phrases[idx];
-      idx = (idx + 1) % phrases.length;
-    };
-    rotatePlain();
-    setInterval(rotatePlain, HOLD_MS + DELAY_MS);
+    for (let i = 0; i < 8; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'label-cell';
 
-  } else {
-    // Full scramble loop
-    let idx = 0;
+      const dot = document.createElement('div');
+      dot.className = 'dot';
 
-    const next = () => {
-      const phrase = phrases[idx];
-      idx = (idx + 1) % phrases.length;
+      const txt = document.createElement('div');
+      txt.className = 'label-text';
 
-      fx.setText(phrase).then(() => {
-        // Hold the readable text for a moment
-        setTimeout(() => {
-          // Tiny delay, then decode next phrase
-          setTimeout(next, DELAY_MS);
-        }, HOLD_MS);
-      });
-    };
+      cell.appendChild(dot);
+      cell.appendChild(txt);
+      gridEl.appendChild(cell);
+      labelEls.push(txt);
+      dotEls.push(dot);
+    }
 
-    next();   // kick off the loop
-  }
-</script>
+    /* ── Element references ───────────────────────────────────────────── */
+    const eyebrowEl  = document.getElementById('eyebrow');
+    const headlineEl = document.getElementById('headline');
+    const secEl      = document.getElementById('secondary');
+
+    /* ── Reduced-motion path ─────────────────────────────────────────── */
+    // If user prefers reduced motion, just rotate text without scrambling
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      let idx = 0;
+      function showStatic() {
+        const s = LABEL_SETS[idx % LABEL_SETS.length];
+        eyebrowEl.textContent  = EYEBROW_PHRASES[idx % EYEBROW_PHRASES.length];
+        headlineEl.textContent = HEADLINE_PHRASES[idx % HEADLINE_PHRASES.length];
+        secEl.textContent      = SECONDARY_PHRASES[idx % SECONDARY_PHRASES.length];
+        labelEls.forEach((el, i) => { el.textContent = (s[i] || '').toUpperCase(); });
+        idx++;
+        setTimeout(showStatic, 3000);
+      }
+      showStatic();
+      return;  // skip the animation path below
+    }
+
+    /* ── Orchestration loop ───────────────────────────────────────────── */
+    let cycle       = 0;
+    let cancellers  = [];  // cancel handles for the current cycle
+
+    // Duration of the label stagger sequence (8 labels × 120ms apart + 1500ms last anim)
+    const LABEL_STAGGER_SPAN = 7 * 120 + MAX_DUR;  // ≈ 2340ms
+    const LABEL_START_MS     = 600;   // when first label starts relative to cycle start
+    const PAUSE_MS           = 1800;  // idle hold after everything has settled
+
+    function cancelCycle() {
+      cancellers.forEach(c => typeof c === 'function' && c());
+      cancellers = [];
+      dotEls.forEach(d => d.classList.remove('active'));
+    }
+
+    function runCycle() {
+      cancelCycle();
+
+      const labels = LABEL_SETS[cycle % LABEL_SETS.length];
+
+      // 1. Eyebrow — immediate
+      cancellers.push(
+        scrambleTo(eyebrowEl, EYEBROW_PHRASES[cycle % EYEBROW_PHRASES.length])
+      );
+
+      // 2. Headline — starts 200 ms in
+      const t1 = setTimeout(() => {
+        cancellers.push(
+          scrambleTo(headlineEl, HEADLINE_PHRASES[cycle % HEADLINE_PHRASES.length])
+        );
+      }, 200);
+      cancellers.push(() => clearTimeout(t1));
+
+      // 3. Secondary — starts 400 ms in
+      const t2 = setTimeout(() => {
+        cancellers.push(
+          scrambleTo(secEl, SECONDARY_PHRASES[cycle % SECONDARY_PHRASES.length])
+        );
+      }, 400);
+      cancellers.push(() => clearTimeout(t2));
+
+      // 4. Label cells — each staggered 120 ms apart, first starts at 600 ms
+      for (let i = 0; i < 8; i++) {
+        (function (idx) {
+          const tLabel = setTimeout(() => {
+            dotEls[idx].classList.add('active');
+            cancellers.push(
+              scrambleTo(labelEls[idx], (labels[idx] || '').toUpperCase(), () => {
+                // Dot dims after the text has settled
+                setTimeout(() => dotEls[idx].classList.remove('active'), 600);
+              })
+            );
+          }, LABEL_START_MS + idx * 120);
+          cancellers.push(() => clearTimeout(tLabel));
+        })(i);
+      }
+
+      // 5. Schedule next cycle
+      const totalCycleDur = LABEL_START_MS + LABEL_STAGGER_SPAN + PAUSE_MS;
+      const tNext = setTimeout(() => {
+        cycle++;
+        runCycle();
+      }, totalCycleDur);
+      cancellers.push(() => clearTimeout(tNext));
+    }
+
+    runCycle();
+
+  })();
+  </script>
 </body>
 </html>

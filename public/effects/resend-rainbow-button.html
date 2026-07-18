@@ -1,0 +1,109 @@
+<!doctype html>
+<!--
+  Rotating Rainbow Border Button  (Resend "Announcing Resend Forward" pill)
+  ─────────────────────────────────────────────────────────────────────────────
+  A rounded pill whose 1px border is a linear-gradient rotated forever by an
+  animated CSS custom property. A registered @property --angle of type <angle>
+  is interpolatable, so @keyframes can tween it from 0deg→360deg and the gradient
+  visibly spins. A blurred duplicate of the same gradient sits behind the pill as
+  a glow that fades in on hover.
+
+  Source: extracted verbatim from resend.com/home (rainbow-border CSS). Colors,
+  timings and structure are the real ones.
+
+  Completely standalone — no CDN, no web fonts, no external assets.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rotating Rainbow Border Button</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0e14;            /* Resend's dark background */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    }
+
+    /* A registered custom property of type <angle> — REQUIRED so that the
+       browser can interpolate it inside @keyframes (a plain --angle would jump). */
+    @property --angle {
+      syntax: "<angle>";
+      inherits: false;
+      initial-value: 0deg;
+    }
+
+    @keyframes rotate { to { --angle: 360deg; } }
+
+    /* The outer element IS the gradient ring. The inner <span> covers all but a
+       1px rim, so only that rim of gradient shows. Both the ring and the glow
+       share the same 30s linear spin. */
+    .rainbow-border {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px;                  /* thickness of the visible gradient rim */
+      height: 32px;
+      border-radius: 9999px;
+      background: linear-gradient(var(--angle), #02fcef70 0%, #ffb52b70 50%, #a02bfe70 100%);
+      animation: rotate 30s linear infinite;
+      cursor: pointer;
+    }
+
+    /* Blurred glow: a brighter copy of the gradient, hidden until hover. */
+    .rainbow-border::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: 9999px;
+      background: linear-gradient(var(--angle), #02fcef 0%, #ffb52b 50%, #a02bfe 100%);
+      filter: blur(20px);
+      opacity: 0;
+      transform: scale(0.95, 0.6);
+      transition: all 0.3s ease-out;
+      animation: rotate 30s linear infinite;
+    }
+    .rainbow-border:hover::after { opacity: 0.9; transform: scaleX(1.1); }
+
+    /* The button face. Slightly inset from the ring; matches the page bg so the
+       pill reads as a thin glowing outline. */
+    .rainbow-border span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 14px;
+      border-radius: 9999px;
+      background-color: #0b0e14;
+      color: #e6e8ee;
+      font-size: 13px;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      transition: all 0.2s ease-out;
+    }
+    .rainbow-border:hover span { background-color: #0b0e14d1; }
+
+    .rainbow-border svg { width: 12px; height: 12px; }
+  </style>
+</head>
+<body>
+  <a class="rainbow-border" href="#" aria-label="Announcing Resend Forward">
+    <span>
+      Announcing Resend Forward
+      <!-- chevron-right -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </span>
+  </a>
+</body>
+</html>
