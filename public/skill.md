@@ -21,9 +21,11 @@ Every effect lives at:
 public/effects/<slug>.html
 ```
 
-That file is **fully self-contained**: a complete `<!doctype html>` document with
-inline `<style>` and `<script>`, no external scripts, fonts, or images, and no
-network calls. It runs when opened directly in a browser.
+That file is **self-contained**: a complete `<!doctype html>` document with inline
+`<style>` and `<script>`, no external fonts or images. It runs when opened directly
+in a browser. The one exception is `resend-cube`, which loads Three.js as a pinned
+ES module from a CDN via an `<script type="importmap">` (called out at the top of
+that file); every other effect makes no network calls at all.
 
 To embed one in your own page you can either:
 
@@ -39,12 +41,16 @@ any JavaScript.
 
 | slug | what it is | seen on |
 |------|------------|---------|
-| `cyber-canvas` | animated particle/network background canvas | https://chatgpt.com/cyber |
-| `meshy-grid` | perspective grid + volumetric light + dust motes | https://www.meshy.ai/ |
-| `sneakers-text` | gibberish→readable "Sneakers" text decode | https://infisical.com/ |
-| `midjourney-swirl` | particles swirling into text | https://www.midjourney.com/home |
+| `cyber-canvas` | matrix glyph field with rippling rainbow waves | https://chatgpt.com/cyber |
+| `meshy-grid` | skewed grid + lime light bloom + flowing-gradient CTA | https://www.meshy.ai/ |
+| `midjourney-home` | prompt-text vortex with CRT post-process shader | https://www.midjourney.com/home |
+| `sneakers-text` | gibberish→readable cipher decode (DOM text, monospace) | https://infisical.com/ |
 | `electron-lines` | glowing pulses traveling along SVG paths | https://schematichq.com/ , https://portkey.ai/ |
-| `resend-cube` | rotating Rubik's cube (CSS 3D) | https://resend.com/home |
+| `text-vortex` | particles swirling into text (original effect) | — |
+| `resend-cube` | all-black material-varied Rubik's cube (Three.js) | https://resend.com/home |
+| `resend-rainbow-button` | pill with a spinning rainbow gradient border | https://resend.com/home |
+| `resend-conic-border` | card with a sweeping conic-gradient border | https://resend.com/home |
+| `coderabbit-dither` | extruded glyph raymarched into vertical-line ASCII bars (WebGL2) | https://app.coderabbit.ai/login |
 
 ## Attribution expectation
 
