@@ -1,0 +1,475 @@
+<!doctype html>
+<!--
+  Vertical-Line Glyph Dither  (CodeRabbit login-page background)
+  ─────────────────────────────────────────────────────────────────────────────
+  The thing behind the headline on https://app.coderabbit.ai/login is a
+  Unicorn Studio WebGL scene (embed ruJTLONEQl9GIDv2uNaZ), rendered at
+  opacity 0.10. Its scene JSON is readable, so this is a faithful port of the
+  *pipeline*, not a guess:
+
+    1. A flat cut-out silhouette is read as a signed distance field.
+    2. The SDF is extruded into a slab (opExtrusion, half-thickness 0.085) and
+       raymarched while it slowly tumbles (their captured base rotation +
+       time spin, speed 0.44).
+    3. The lit render is pixelated onto a grid and each cell's luminance picks
+       a sprite from a "vertical_lines" glyph strip — 9 centered bars whose
+       width grows 4px per step — painted flat #E4E4E7. That bar-dither is the
+       look.
+
+  Two things can't ship as-is and are reproduced locally instead:
+    • Their silhouette is CodeRabbit's own rabbit artwork on their CDN. This
+      demo extrudes a text glyph ("FX") whose SDF is built at load with a
+      Felzenszwalb distance transform — swap the STRING constant for any mark.
+    • Their glyph atlas is an external PNG. It decodes to an exact rule
+      (360x40, nine 40px cells, bar width = 4*index), so it's regenerated
+      procedurally here — a match, not an approximation.
+
+  One deliberate change: the real site renders at opacity 0.10 (nearly
+  invisible). Like the meshy-grid demo in this repo, the shape is lifted so it
+  reads standalone. All shader constants are otherwise kept as captured.
+
+  Fully self-contained: no external scripts, fonts, or images.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vertical-Line Glyph Dither</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: #101014;
+      color: #e4e4e7;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* The scene canvas bleeds off the left edge, as it does on the real page. */
+    #scene {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 850px;
+      height: 850px;
+      transform: translate(-8%, -50%);
+      display: block;
+      pointer-events: none;
+    }
+
+    /* Text sits in front of the shape, mirroring the login-page composition:
+       a big left-aligned headline, a muted mono sub-line, two outlined pills. */
+    .copy {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 22px;
+      padding: 0 clamp(28px, 6vw, 96px);
+      max-width: 760px;
+    }
+    h1 {
+      font-size: clamp(30px, 4.4vw, 52px);
+      line-height: 1.12;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      max-width: 15ch;
+    }
+    .sub {
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+      font-size: clamp(13px, 1.4vw, 15px);
+      color: #9a9aa6;
+      letter-spacing: 0.01em;
+    }
+    .pills { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+    .pill {
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+      font-size: 12.5px;
+      color: #c7c7d1;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-label="Slowly tumbling extruded glyph, rendered as vertical-line ASCII dither" role="img"></canvas>
+
+  <div class="copy">
+    <h1>You&rsquo;re one file away from shipping cooler code.</h1>
+    <p class="sub">A raymarched slab, dithered into vertical bars.</p>
+    <div class="pills">
+      <span class="pill">no dependencies</span>
+      <span class="pill">one HTML file</span>
+    </div>
+  </div>
+
+  <script type="module">
+  // ── Config ──────────────────────────────────────────────────────────────
+  const STRING   = 'FX';   // the silhouette to extrude — swap for any glyph(s)
+  const SDF_SIZE = 256;    // resolution of the baked distance field
+  const SDF_SPREAD = 40;   // px range mapped into the normalized SDF's [0,1]
+  const OPACITY  = 0.5;    // real site uses 0.10; lifted so it reads standalone
+
+  const canvas = document.getElementById('scene');
+  const gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false });
+  if (!gl) throw new Error('WebGL2 required');
+
+  // ── 1. Bake the silhouette into a signed distance field ─────────────────
+  // Draw the string, then run a Felzenszwalb exact Euclidean distance
+  // transform inside and outside the mask. This replaces CodeRabbit's rabbit
+  // MSDF texture with an equivalent field generated on the fly.
+  function bakeSDF() {
+    const S = SDF_SIZE;
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, S, S);
+    g.fillStyle = '#fff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = `900 ${S * 0.62}px ui-sans-serif, system-ui, "Arial Black", sans-serif`;
+    g.fillText(STRING, S / 2, S / 2 + S * 0.02);
+
+    const px = g.getImageData(0, 0, S, S).data;
+    const inside = new Float64Array(S * S);   // 1 where glyph, 0 elsewhere
+    for (let i = 0; i < S * S; i++) inside[i] = px[i * 4] > 127 ? 1 : 0;
+
+    const INF = 1e20;
+    // 1D squared-distance transform of a row of function values f (Felzenszwalb).
+    const edt1d = (f, n) => {
+      const d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+      let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+      for (let q = 1; q < n; q++) {
+        let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+        while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+        k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+      }
+      k = 0;
+      for (let q = 0; q < n; q++) {
+        while (z[k + 1] < q) k++;
+        d[q] = (q - v[k]) * (q - v[k]) + f[v[k]];
+      }
+      return d;
+    };
+    // 2D EDT over a boolean field (dist to nearest "on" pixel, in px).
+    const edt2d = (on) => {
+      const f = new Float64Array(S * S);
+      for (let i = 0; i < S * S; i++) f[i] = on[i] ? 0 : INF;
+      const col = new Float64Array(S);
+      for (let x = 0; x < S; x++) {
+        for (let y = 0; y < S; y++) col[y] = f[y * S + x];
+        const d = edt1d(col, S);
+        for (let y = 0; y < S; y++) f[y * S + x] = d[y];
+      }
+      const row = new Float64Array(S);
+      for (let y = 0; y < S; y++) {
+        for (let x = 0; x < S; x++) row[x] = f[y * S + x];
+        const d = edt1d(row, S);
+        for (let x = 0; x < S; x++) f[y * S + x] = Math.sqrt(d[x]);
+      }
+      return f;
+    };
+
+    const outside = new Float64Array(S * S);
+    for (let i = 0; i < S * S; i++) outside[i] = inside[i] ? 0 : 1;
+    const dOut = edt2d(inside);    // >0 outside the glyph
+    const dIn  = edt2d(outside);   // >0 inside the glyph
+
+    // Signed distance (negative inside), normalized to [0,1] with 0.5 = edge.
+    const tex = new Uint8Array(S * S);
+    for (let i = 0; i < S * S; i++) {
+      const signed = dOut[i] - dIn[i];
+      const n = 0.5 - (signed / (2 * SDF_SPREAD));
+      tex[i] = Math.max(0, Math.min(255, Math.round(n * 255)));
+    }
+    return tex;
+  }
+
+  // ── 2. Regenerate the vertical-lines glyph atlas ────────────────────────
+  // The real sprite (assets.unicorn.studio/media/glyphs/vertical_lines.png)
+  // decodes to 9 cells of 40x40, each a centered white bar of width 4*index
+  // (0,4,8,…,32 px). Rebuilt here exactly, no external image.
+  function bakeGlyphAtlas() {
+    const CELL = 40, N = 9;
+    const c = document.createElement('canvas');
+    c.width = CELL * N; c.height = CELL;
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height);
+    g.fillStyle = '#fff';
+    for (let i = 0; i < N; i++) {
+      const w = i * 4;
+      if (w > 0) g.fillRect(i * CELL + (CELL - w) / 2, 0, w, CELL);
+    }
+    return g.getImageData(0, 0, c.width, c.height);
+  }
+
+  // ── WebGL plumbing ──────────────────────────────────────────────────────
+  const compile = (type, src) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  };
+  const program = (vs, fs) => {
+    const p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  };
+
+  // Full-screen triangle shared by both passes.
+  const VERT = `#version 300 es
+  in vec2 aPos;
+  out vec2 vUv;
+  void main() {
+    vUv = aPos * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 0.0, 1.0);
+  }`;
+
+  // Pass 1: raymarch the extruded SDF slab, output a lit greyscale shape.
+  // Keeps their extrusion (half-thickness 0.085 → here 0.16 so a text glyph
+  // reads as a chunky slab) and spin feel (their speed 0.44). Their exact base
+  // rotation math is tuned to the rabbit artboard and turns a flat glyph nearly
+  // edge-on, so the tumble here is a clean camera-facing tilt + slow Y turn.
+  const RAYMARCH = `#version 300 es
+  precision highp float;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform float uTime;
+  uniform sampler2D uSdf;
+
+  const float PI = 3.14159265359;
+  const float K = 0.42;          // glyph SDF uv scale: uv = xy*K + 0.5
+  const float HALF_THICK = 0.16; // slab half-depth along z
+  const float VIEW = 2.4;        // camera half-extent (zoom)
+  // SDF decode → object units: n=0.5 is the edge; the stored range spans
+  // ±SDF_SPREAD px, and 1 px = 1/(SDF_SIZE*K) object units.
+  const float DIST_SCALE = 2.0 * float(${SDF_SPREAD}) / (float(${SDF_SIZE}) * K);
+
+  mat3 rotX(float a){ float c=cos(a),s=sin(a); return mat3(1.,0.,0., 0.,c,-s, 0.,s,c); }
+  mat3 rotY(float a){ float c=cos(a),s=sin(a); return mat3(c,0.,s, 0.,1.,0., -s,0.,c); }
+
+  // 2D signed distance of the glyph at object-space xy, decoded from the SDF.
+  float sd2D(vec2 xy) {
+    vec2 uv = xy * K + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+    float n = texture(uSdf, uv).r;             // 0.5 = edge, <0.5 inside
+    return (0.5 - n) * DIST_SCALE;             // object-space signed distance
+  }
+  // opExtrusion: 2D field d extruded to a slab of half-height h along z.
+  float opExtrusion(vec3 p, float d, float h) {
+    vec2 w = vec2(d, abs(p.z) - h);
+    return min(max(w.x, w.y), 0.0) + length(max(w, 0.0));
+  }
+  float map(vec3 p) {
+    // A gentle swing at the layer's speed (0.44), kept as an oscillation so a
+    // text glyph never turns fully edge-on / mirrored the way the rabbit could.
+    float ang = sin(uTime * 0.44 * 0.7) * 0.55;
+    p = rotX(0.30) * rotY(ang) * p;            // fixed downward tilt + Y swing
+    return opExtrusion(p, sd2D(p.xy), HALF_THICK);
+  }
+  vec3 calcNormal(vec3 p) {
+    vec2 e = vec2(0.0015, 0.0);
+    return normalize(vec3(
+      map(p + e.xyy) - map(p - e.xyy),
+      map(p + e.yxy) - map(p - e.yxy),
+      map(p + e.yyx) - map(p - e.yyx)));
+  }
+  void main() {
+    // Orthographic camera looking down -z (their viewDir ~ (0,0,-4.25)).
+    vec2 p = (vUv - 0.5) * VIEW;
+    vec3 ro = vec3(p, 2.2);
+    vec3 rd = vec3(0.0, 0.0, -1.0);
+    float t = 0.0, lum = 0.0;
+    bool hit = false;
+    for (int i = 0; i < 96; i++) {
+      vec3 pos = ro + rd * t;
+      float d = map(pos);
+      if (d < 0.0008) { hit = true; break; }
+      t += d;
+      if (t > 4.0) break;
+    }
+    if (hit) {
+      vec3 pos = ro + rd * t;
+      vec3 nrm = calcNormal(pos);
+      vec3 L = normalize(vec3(0.45, 0.7, 0.85));
+      float diff = clamp(dot(nrm, L), 0.0, 1.0);
+      float rim  = pow(1.0 - clamp(dot(nrm, -rd), 0.0, 1.0), 2.0);
+      lum = 0.28 + 0.72 * diff + 0.25 * rim;
+    }
+    lum = clamp(lum, 0.0, 1.0);
+    fragColor = vec4(vec3(lum), 1.0);
+  }`;
+
+  // Pass 2: glyph dither. Near-verbatim port of their glyphDither shader —
+  // cell grid 0.0195, sample offset (0.5225,0.5120), luminance→sprite with
+  // gamma pow(3.0,2.2), flat ink rgb(0.894,0.894,0.906) = #E4E4E7.
+  const DITHER = `#version 300 es
+  precision highp float;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform sampler2D uTex;    // raymarch result
+  uniform sampler2D uSprite; // glyph atlas
+  uniform vec2 uRes;
+  uniform float uOpacity;
+
+  void main() {
+    vec2 uv = vUv;
+    vec2 pos = vec2(0.5225128644939966, 0.5120068610634648);
+    float aspect = uRes.x / uRes.y;
+    float aspectCorrection = mix(aspect, 1.0 / aspect, 0.5);
+
+    float gridSize = mix(0.05, 0.005, 0.6780);   // ≈0.0195
+    float baseGrid = 1.0 / gridSize;
+    vec2 cellSize = vec2(1.0 / (baseGrid * aspect), 1.0 / baseGrid) * aspectCorrection;
+    vec2 offsetUv = uv - pos;
+    vec2 cell = floor(offsetUv / cellSize);
+    vec2 cellCenter = (cell + 0.5) * cellSize;
+    vec2 pixelatedCoord = cellCenter + pos;
+
+    vec4 color = texture(uTex, pixelatedCoord);
+    float luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float gamma = pow(mix(0.2, 2.2, 1.4000), 2.2);   // ≈11.21
+
+    ivec2 sz = textureSize(uSprite, 0);
+    float GLYPH_H = float(sz.y);
+    float numSprites = max(1.0, float(sz.x) / GLYPH_H);
+    float scaleFactor = gridSize / GLYPH_H;
+
+    float spriteIndex = clamp(floor(luminance * numSprites * gamma), 0.0, numSprites - 1.0);
+    float invN = 1.0 / numSprites;
+
+    vec2 spriteSize = vec2(GLYPH_H / aspect, GLYPH_H) * scaleFactor * aspectCorrection;
+    vec2 localOffset = mod(uv - pos, spriteSize) / spriteSize;
+    float inset = 0.5 / GLYPH_H;
+    localOffset = clamp(localOffset, inset, 1.0 - inset);
+
+    vec2 spriteUV = vec2(spriteIndex * invN, 0.0) + vec2(localOffset.x * invN, localOffset.y);
+    float bar = texture(uSprite, spriteUV).r;
+    float alpha = smoothstep(0.0, 1.0, bar);
+
+    vec3 ink = vec3(0.8941176470588236, 0.8941176470588236, 0.9058823529411765);
+    fragColor = vec4(ink * alpha * uOpacity, alpha * uOpacity);
+  }`;
+
+  const quad = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+
+  const bindQuad = (prog) => {
+    const loc = gl.getAttribLocation(prog, 'aPos');
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  };
+
+  const progRay = program(VERT, RAYMARCH);
+  const progDit = program(VERT, DITHER);
+
+  // Textures
+  const mkTex = () => {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    return t;
+  };
+
+  const sdfTex = mkTex();
+  gl.bindTexture(gl.TEXTURE_2D, sdfTex);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, SDF_SIZE, SDF_SIZE, 0, gl.RED, gl.UNSIGNED_BYTE, bakeSDF());
+
+  const spriteTex = mkTex();
+  gl.bindTexture(gl.TEXTURE_2D, spriteTex);
+  const atlas = bakeGlyphAtlas();
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, atlas.width, atlas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+    new Uint8Array(atlas.data.buffer));
+
+  // Offscreen target for the raymarch pass.
+  const rayTex = mkTex();
+  const fbo = gl.createFramebuffer();
+  let fboW = 0, fboH = 0;
+  function sizeFbo(w, h) {
+    if (w === fboW && h === fboH) return;
+    fboW = w; fboH = h;
+    gl.bindTexture(gl.TEXTURE_2D, rayTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rayTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(canvas.clientWidth * dpr);
+    const h = Math.round(canvas.clientHeight * dpr);
+    if (w === canvas.width && h === canvas.height) return;
+    canvas.width = w; canvas.height = h;
+    sizeFbo(w, h);
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied
+
+  const uRayTime = gl.getUniformLocation(progRay, 'uTime');
+  const uRaySdf  = gl.getUniformLocation(progRay, 'uSdf');
+  const uDitTex  = gl.getUniformLocation(progDit, 'uTex');
+  const uDitSpr  = gl.getUniformLocation(progDit, 'uSprite');
+  const uDitRes  = gl.getUniformLocation(progDit, 'uRes');
+  const uDitOp   = gl.getUniformLocation(progDit, 'uOpacity');
+
+  const start = performance.now();
+  function frame(now) {
+    const t = (now - start) / 1000;
+    const w = canvas.width, h = canvas.height;
+
+    // Pass 1 → FBO
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.viewport(0, 0, w, h);
+    gl.disable(gl.BLEND);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(progRay);
+    bindQuad(progRay);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sdfTex);
+    gl.uniform1i(uRaySdf, 0);
+    gl.uniform1f(uRayTime, t);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // Pass 2 → screen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, w, h);
+    gl.enable(gl.BLEND);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(progDit);
+    bindQuad(progDit);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, rayTex);
+    gl.uniform1i(uDitTex, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, spriteTex);
+    gl.uniform1i(uDitSpr, 1);
+    gl.uniform2f(uDitRes, w, h);
+    gl.uniform1f(uDitOp, OPACITY);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
