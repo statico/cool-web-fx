@@ -11,7 +11,7 @@
     "thumbs": "node scripts/take-screenshots.mjs"
   },
   "devDependencies": {
-    "astro": "^4.16.0",
+    "astro": "^6.4.6",
     "playwright": "^1.61.1"
   }
 }
