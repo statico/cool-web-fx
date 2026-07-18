@@ -1,237 +1,153 @@
 <!doctype html>
+<!--
+  Black Rubik's Cube  (Resend home hero object)
+  ─────────────────────────────────────────────────────────────────────────────
+  Resend's hero cube ships as a Spline scene (a binary cube.splinecode rendered by
+  Spline's runtime) so there is no source code to lift. This is a faithful
+  recreation in plain Three.js of the same object: an all-black 3x3 Rubik's cube
+  built from rounded cubies, each sticker given a slightly different finish
+  (matte → satin → glossy, plus a few "perforated" stickers) so the light rakes
+  across it the way it does in the real render. Studio reflections come from a
+  procedural RoomEnvironment; the whole cube turns slowly on a fixed tilt.
+
+  Needs Three.js — loaded as a pinned ES module from a CDN via the importmap below.
+  Everything else is inline; no other external assets.
+-->
 <html lang="en">
 <head>
   <link rel="icon" href="data:,">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rotating Rubik's Cube</title>
+  <title>Black Rubik's Cube</title>
   <style>
-    /* ─── Reset ───────────────────────────────────────────────────────── */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-
-    /* ─── Light background ────────────────────────────────────────────── */
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #ebebed 50%, #d8d8da 100%);
-    }
-
-    /* ─── Wrapper: cube + ground shadow stacked vertically ───────────── */
-    .wrapper {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    /* ─── Perspective scene ───────────────────────────────────────────── */
-    /*
-     * 700px perspective on a 240px cube gives a moderate depth effect —
-     * enough to read as clearly 3D without extreme fisheye distortion.
-     */
-    .scene {
-      perspective: 700px;
-      perspective-origin: 50% 50%;
-      width: 240px;
-      height: 240px;
-    }
-
-    /* ─── The cube ────────────────────────────────────────────────────── */
-    /*
-     * transform-style: preserve-3d propagates 3D context to child faces.
-     * The cube spins on the Y axis while a fixed -28deg X tilt keeps the
-     * top face in view, so you see three faces simultaneously at all times.
-     */
-    .cube {
-      width: 240px;
-      height: 240px;
-      position: relative;
-      transform-style: preserve-3d;
-      animation: spin 10s linear infinite;
-    }
-
-    @keyframes spin {
-      from { transform: rotateX(-28deg) rotateY(0deg); }
-      to   { transform: rotateX(-28deg) rotateY(360deg); }
-    }
-
-    /* ─── Faces ───────────────────────────────────────────────────────── */
-    /*
-     * Each face is absolutely positioned and fills the cube container
-     * (240×240px). The CSS grid creates the 3×3 sticker layout.
-     * Black background (#111) acts as the frame and gaps between stickers.
-     */
-    .face {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, 1fr);
-      gap: 7px;
-      padding: 10px;
-      background: #111;
-      border-radius: 6px;
-    }
-
-    /*
-     * Each face is translated half the cube's depth (120px) along its
-     * natural Z axis, after being rotated into the correct orientation.
-     */
-    .face-front  { transform: translateZ(120px); }
-    .face-back   { transform: rotateY(180deg)  translateZ(120px); }
-    .face-right  { transform: rotateY( 90deg)  translateZ(120px); }
-    .face-left   { transform: rotateY(-90deg)  translateZ(120px); }
-    .face-top    { transform: rotateX( 90deg)  translateZ(120px); }
-    .face-bottom { transform: rotateX(-90deg)  translateZ(120px); }
-
-    /* ─── Stickers ────────────────────────────────────────────────────── */
-    .sticker {
-      border-radius: 4px;
-    }
-
-    /* Classic Rubik's cube palette */
-    .red    { background: #c91c3b; }
-    .orange { background: #ff6a00; }
-    .blue   { background: #0046ad; }
-    .green  { background: #009651; }
-    .yellow { background: #ffdd00; }
-    /* White sticker gets a faint inset border so it reads against the bg */
-    .white  { background: #f5f5f5; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
-
-    /* ─── Ground shadow ───────────────────────────────────────────────── */
-    /*
-     * A flat 2D ellipse below the scene rendered as a blurred radial
-     * gradient. It's intentionally kept in normal document flow so it
-     * always sits directly beneath the cube regardless of viewport size.
-     */
-    .shadow {
-      width: 260px;
-      height: 36px;
-      margin-top: 14px;
-      background: radial-gradient(ellipse at 50% 60%, rgba(0,0,0,0.22) 0%, transparent 68%);
-      filter: blur(6px);
-      border-radius: 50%;
-    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    canvas { display: block; width: 100%; height: 100%; }
   </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://esm.sh/three@0.160.0",
+      "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
-  <!--
-    Rotating Rubik's Cube
-    ─────────────────────
-    Six CSS 3D faces, each a 3×3 grid of sticker divs in classic Rubik's
-    colors (red, orange, blue, green, white, yellow). The cube container
-    rotates via a CSS @keyframes animation on Y with a fixed X tilt so
-    the top face and two side faces are visible simultaneously.
+  <script type="module">
+    import * as THREE from 'three';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-    Face map:
-      Front  → Red
-      Back   → Orange
-      Right  → Blue
-      Left   → Green
-      Top    → White
-      Bottom → Yellow
-  -->
+    const canvas = document.createElement('canvas');
+    document.body.appendChild(canvas);
 
-  <div class="wrapper">
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
 
-    <!-- Perspective container — establishes the 3D viewing frustum -->
-    <div class="scene">
-      <div class="cube">
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
 
-        <!-- Front: Red ──────────────────────────────────────────────── -->
-        <div class="face face-front">
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-          <div class="sticker red"></div>
-        </div>
+    // Procedural studio environment → gives the black, glossy stickers something
+    // to reflect. Without this an all-black metal cube reads as a flat silhouette.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-        <!-- Back: Orange ────────────────────────────────────────────── -->
-        <div class="face face-back">
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-          <div class="sticker orange"></div>
-        </div>
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+    camera.position.set(4.2, 3.4, 5.6);
+    camera.lookAt(0, 0, 0);
 
-        <!-- Right: Blue ─────────────────────────────────────────────── -->
-        <div class="face face-right">
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-          <div class="sticker blue"></div>
-        </div>
+    // Key carves a highlight across the top; a fill keeps the shadow side from
+    // going pure-black (so cubies stay visible against the black background); a
+    // cool rim traces the silhouette edges.
+    const key = new THREE.DirectionalLight(0xffffff, 2.0);
+    key.position.set(5, 8, 6);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.7);
+    fill.position.set(-6, 1, 4);
+    scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xbcd2ff, 1.6);
+    rim.position.set(-4, 3, -6);
+    scene.add(rim);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
 
-        <!-- Left: Green ─────────────────────────────────────────────── -->
-        <div class="face face-left">
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-          <div class="sticker green"></div>
-        </div>
+    // ── A canvas-generated "perforated" roughness map for a few stickers ──
+    function perforatedTexture() {
+      const s = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, s, s);       // rough (matte) base
+      g.fillStyle = '#222';                                // smooth dots
+      const step = 14;
+      for (let y = step / 2; y < s; y += step)
+        for (let x = step / 2; x < s; x += step) {
+          g.beginPath(); g.arc(x, y, 3.4, 0, Math.PI * 2); g.fill();
+        }
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.NoColorSpace;
+      return tex;
+    }
+    const perfMap = perforatedTexture();
 
-        <!-- Top: White ──────────────────────────────────────────────── -->
-        <div class="face face-top">
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-          <div class="sticker white"></div>
-        </div>
+    // Pool of black finishes. All share a near-black base color; the look comes
+    // entirely from how rough/metallic each one is.
+    function makeMaterials() {
+      const base = 0x18181a;            // near-black, but not a pure void
+      const env = 1.4;                   // how strongly each finish picks up reflections
+      const mk = (o) => Object.assign(new THREE.MeshStandardMaterial({ color: base, envMapIntensity: env }), o);
+      const mats = [
+        mk({ roughness: 0.22, metalness: 0.55 }),                    // glossy
+        mk({ roughness: 0.40, metalness: 0.45 }),                    // satin
+        mk({ roughness: 0.58, metalness: 0.35 }),                    // soft
+        mk({ roughness: 0.78, metalness: 0.20 }),                    // matte
+        mk({ roughness: 0.92, metalness: 0.15, roughnessMap: perfMap }), // perforated (rare)
+      ];
+      return mats;
+    }
+    const MATS = makeMaterials();
 
-        <!-- Bottom: Yellow ──────────────────────────────────────────── -->
-        <div class="face face-bottom">
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-          <div class="sticker yellow"></div>
-        </div>
+    // Deterministic pseudo-random so the finish layout is stable each load.
+    let seed = 1337;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
-      </div><!-- /.cube -->
-    </div><!-- /.scene -->
+    const cube = new THREE.Group();
+    const SIZE = 0.96;          // cubie size
+    const GAP  = 1.0;           // center-to-center spacing
+    const geo  = new RoundedBoxGeometry(SIZE, SIZE, SIZE, 4, 0.1);
 
-    <!-- Ground shadow: blurred ellipse anchored below the cube -->
-    <div class="shadow"></div>
+    for (let x = -1; x <= 1; x++)
+      for (let y = -1; y <= 1; y++)
+        for (let z = -1; z <= 1; z++) {
+          // weight toward glossy/satin, a few matte, and only the occasional
+          // perforated sticker (≈4%) — matching the real render.
+          const r = rnd();
+          const mat = r < 0.45 ? MATS[0] : r < 0.72 ? MATS[1] : r < 0.89 ? MATS[2]
+                    : r < 0.96 ? MATS[3] : MATS[4];
+          const m = new THREE.Mesh(geo, mat);
+          m.position.set(x * GAP, y * GAP, z * GAP);
+          cube.add(m);
+        }
+    cube.rotation.x = -0.32;     // fixed tilt so three faces stay visible
+    cube.rotation.y = 0.6;       // open on a 3/4 view rather than face-on
+    scene.add(cube);
 
-  </div><!-- /.wrapper -->
+    function resize() {
+      const w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    renderer.setAnimationLoop(() => {
+      cube.rotation.y += 0.004;   // slow, steady turn
+      renderer.render(scene, camera);
+    });
+  </script>
 </body>
 </html>

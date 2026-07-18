@@ -1,0 +1,10 @@
+{
+  "title": "Conic Gradient Sweep Border",
+  "slug": "resend-conic-border",
+  "order": 9,
+  "sourceUrl": "https://resend.com/home",
+  "sourceName": "Resend",
+  "credit": "Resend",
+  "blurb": "A card whose border is a bright arc that sweeps around the perimeter, painted with a rotating conic gradient.",
+  "technique": "Resend uses this on the \"Everything in your control\" product tabs (the \"Intuitive analytics\" card) and on the \"Send test email\" pill. The border is painted with the **two-background-clip trick**:\n\n`background: linear-gradient(#0b0e14,#0b0e14) padding-box, conic-gradient(from var(--angle) …) border-box;`\n\nThe first layer is clipped to the *padding box* (the face), the second to the *border box* (face **plus** the border ring) — so the conic gradient is only ever visible in the few px of border the face doesn't cover. Rotating the conic gradient's start angle (`from var(--angle)`) sends its bright arc travelling around the edge.\n\nAs in the rainbow-border button, `--angle` is a registered `@property` of type `<angle>` so it can be tweened by `@keyframes`. On the real site the sweep is a **one-shot**: when a tab becomes active, JavaScript (Framer Motion) animates `--angle` from `0deg`→`360deg` with an `ease-in` curve while fading the arc's `--color` in at the start and back out near the end, so a glow makes one lap and vanishes. Here it loops continuously so the effect is always on screen.\n\nThe arc color is Resend's real light tone (`rgb(234,234,234)`) with an emerald accent (`#4ade80`) for the \"active\" state; a blurred `::after` carrying the same conic gradient adds an outer glow. The card contents (a faux delivery sparkline and metrics) are ordinary markup inside the padding box."
+}

@@ -1,0 +1,134 @@
+<!doctype html>
+<!--
+  Conic Gradient Sweep Border  (Resend "Intuitive analytics" card / "Send test email" pill)
+  ─────────────────────────────────────────────────────────────────────────────
+  A card whose border is painted with the padding-box/border-box background trick:
+    background: padding-box var(--bg-color), border-box var(--border-color);
+  The face (--bg-color) covers the padding box; a conic-gradient (--border-color)
+  shows only in the 1px border box. Rotating the conic gradient's start angle via a
+  registered @property --angle sends a bright arc travelling around the perimeter.
+
+  Source: technique + colors extracted from resend.com/home. Resend fires the sweep
+  as a one-shot (JS tweens --angle 0deg→360deg with ease-in, fading the arc colour
+  in at the start and out near the end) when a product tab becomes active. Here it
+  loops continuously so the effect is always visible. The arc colour is Resend's
+  real rgb(234,234,234) light tone, with a green accent for the "active" nod.
+
+  Completely standalone — no CDN, no web fonts, no external assets.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conic Gradient Sweep Border</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #08090c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+      color: #e6e8ee;
+    }
+
+    /* Interpolatable angle — registered so @keyframes can tween it. */
+    @property --angle {
+      syntax: "<angle>";
+      inherits: false;
+      initial-value: 0deg;
+    }
+    @keyframes spin { to { --angle: 360deg; } }
+
+    .card {
+      position: relative;
+      width: 280px;
+      border-radius: 14px;
+      padding: 1.5px;                /* = border thickness */
+      /* The real Resend trick: face on the padding box, gradient on the border box. */
+      background:
+        linear-gradient(#0b0e14, #0b0e14) padding-box,
+        conic-gradient(
+          from var(--angle) at 50% 50%,
+          transparent 0deg,
+          rgba(234,234,234,0.05) 60deg,
+          rgba(234,234,234,0.95) 90deg,   /* the bright leading edge of the arc */
+          #4ade80 100deg,                  /* green "active" accent in the arc */
+          rgba(234,234,234,0.05) 130deg,
+          transparent 200deg,
+          transparent 360deg
+        ) border-box;
+      animation: spin 4s linear infinite;
+    }
+
+    /* Soft glow that picks up the same sweep, blurred behind the card. */
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      z-index: -1;
+      border-radius: 14px;
+      background: conic-gradient(
+        from var(--angle) at 50% 50%,
+        transparent 0deg,
+        rgba(120,255,170,0.0) 70deg,
+        rgba(120,255,170,0.55) 95deg,
+        transparent 160deg,
+        transparent 360deg
+      );
+      filter: blur(14px);
+      animation: spin 4s linear infinite;
+    }
+
+    .card-inner {
+      border-radius: 12.5px;
+      background: #0b0e14;
+      padding: 18px 18px 14px;
+    }
+
+    .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+    .card-title { font-size: 14px; letter-spacing: -0.01em; color: #f1f3f7; }
+    .card-sub { font-size: 11px; color: #7a8190; margin-bottom: 14px; }
+
+    /* tiny faux analytics chart */
+    .chart { width: 100%; height: 70px; display: block; }
+    .metrics { display: flex; gap: 16px; margin-top: 12px; }
+    .metric .v { font-size: 16px; color: #f1f3f7; }
+    .metric .k { font-size: 10px; color: #7a8190; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-inner">
+      <div class="card-head">
+        <span class="dot"></span>
+        <span class="card-title">Intuitive analytics</span>
+      </div>
+      <div class="card-sub">Delivered · last 30 days</div>
+      <svg class="chart" viewBox="0 0 240 70" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4ade80" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,55 L24,48 L48,52 L72,38 L96,42 L120,26 L144,30 L168,18 L192,22 L216,10 L240,14
+                 L240,70 L0,70 Z" fill="url(#fill)"/>
+        <path d="M0,55 L24,48 L48,52 L72,38 L96,42 L120,26 L144,30 L168,18 L192,22 L216,10 L240,14"
+              fill="none" stroke="#4ade80" stroke-width="1.5"/>
+      </svg>
+      <div class="metrics">
+        <div class="metric"><div class="v">99.1%</div><div class="k">DELIVERED</div></div>
+        <div class="metric"><div class="v">12,840</div><div class="k">SENT</div></div>
+        <div class="metric"><div class="v">41.2%</div><div class="k">OPENED</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

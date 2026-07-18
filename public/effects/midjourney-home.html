@@ -1,0 +1,339 @@
+<!doctype html>
+<!--
+  Midjourney — Homepage Hero "Prompt Vortex"
+  ─────────────────────────────────────────────────────────────────────────────
+  Faithful port of the canvas effect on https://www.midjourney.com/home.
+
+  Pipeline (exactly as the real site):
+    1. An offscreen 2D canvas renders a wall of real Midjourney /imagine prompts
+       as monospaced text, but each output character is SAMPLED from a position
+       rotated about the screen centre by an angle that grows toward the middle
+       (angle = time*0.1 / max(0.1, radius)). This differential rotation winds the
+       text into a slowly-spinning vortex. The word "Midjourney" (figlet banner)
+       fades up in white at the centre, its glyphs lerping out of the swirl.
+    2. That 2D canvas is uploaded as a texture to a WebGL2 fragment shader that
+       applies a CRT look: barrel curvature (eased in over 3s), RGB chroma shift
+       that decays over the first second, moving scanlines, a vignette, a 2.5x
+       brightness boost and exp() soft-clip.
+
+  Everything below — the swirl maths, both GLSL shaders, the colours
+  (#061434 bg, hsl(220,48%,48%) text) and the prompt text — is lifted verbatim
+  from Midjourney's clientSideEntry bundle. Self-contained, no CDN, no assets.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Midjourney — Prompt Vortex</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #06051d; }
+    /* The gradient shows through the transparent, curvature-clipped corners of
+       the WebGL canvas — same gradient the real hero container uses. */
+    #stage {
+      position: fixed; inset: 0;
+      background: linear-gradient(0deg, #06051d 30%, #061434);
+    }
+    #gl { display: block; width: 100%; height: 100%; background: transparent; }
+  </style>
+</head>
+<body>
+  <div id="stage"><canvas id="gl"></canvas></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* ── Wall of real Midjourney /imagine prompts (dense art for the home hero) ── */
+    const ART_TEXT = `/imagine close up, modern cowboy on a ranch, his eyes are filled with the cosmos, realistic
+    /imagine city areal perspective. streets glowing, concrete architecture, green roofs, people on the streets
+    /imagine the beginning of the universe by Monet
+    /imagine looking up a never ending staircase by Jean Giraud Moebius
+    /imagine abstract, cycle, organic, powerful, behance
+    /imagine gorgeous bouquet still life painting in the style of Odilon Redon and Henri Fantin-Latour
+    /imagine a warm sunny beach near an ocean full of pikachu's
+    /imagine 3d render of gold rings, geometric, circles, triangles, psychedelic, infinity pool, eccojams, vaporwave, oneohtrix point never, golden hour, glossy reflections and light rays, portals into other worlds
+    /imagine intricate jungle landscape by albrecht durer, henri rousseau, pieter brueghel the elder, mattisse
+    /imagine cyberpunk cat rabbit hacker, googles, anime style
+    /imagine banana with glasses dancing, ghibli style
+    /imagine corgis dancing in vibrant victorian dresses, Rococo style, in a large luxurious ballroom
+    /imagine A wise/meditating/fantasy wizard sitting in complex/intricate meadow with mountains/fields, painted by Japanese artist Koji Miromoto using detailed/hyperfine/lineart/print black paper ink techniques and exotic glowy psychedelic ink, autochrome colors/style. Stylized/detailed/textured, gradients, graduated colors, fine line details.
+    /imagine 1960s illustration of the beginning of life on Earth
+    /imagine commodore 1351 mouse. 80s sythwave style. hyper realistic
+    /imagine map of steampunk desert
+    /imagine francisco goya scene oil painting watercolor sci-fi science fiction cyberpunk time machine
+    /imagine Portrait of a cyber glitch sorceress causing video corruption with her magic
+    /imagine a realistic ancient temple, crumbling stone, vines, extreme detail, statues, octane render, volumetric fog, realistic lighting, reflections
+    /imagine giant red crystals in a desert with two suns
+    /imagine Robin Williams in the style of John Allison
+    /imagine standing in front of a castle
+    /imagine a professional photorealistic Portrait of an Astronaut by Peter Mohrbacher,Shaun Tan and Seb McKinnon,realistic eyes,realistic hair,,Beautiful Hit Tech costume and Helmet details,Beautiful dramatic dark moody lighting,Cinematographic Atmosphere,photorealism glossy magazine painting,Octane Render,Deep Color,8k Resolution,High Details,Flickr,DSLR,CGsociety,Artstation
+    /imagine Matter condensed from energy, life built upon matter, consciousness upon life
+    /imagine hyperreal swirling watercolors trapped in a soap bubble, 4k render
+    /imagine beautiful painting of clouds with sunrise, by john martin, Trending on artstation, pastel aesthetic
+    /imagine modern futuristic lampshade with art nouveau inspiration
+    /imagine photo shot on Leica IIIf with 50mm f/2 Summar; 1/50 sec; f/4
+    /imagine sharp alphabet typography by Walter Gropius
+    /imagine four dogs playing poker in a crowded room, by Malcolm Liepke and Lovis Corinth, oilpainting
+    /imagine invitation made with old paper written with cursive font pyrographic words in the center | red wax seal above in the top-left corner, cinematic light, artstation
+    /imagine aisle view of the festival street market in AlUla, many booths, seating areas, natural materials, cinematic shot
+    /imagine japanese temple, sakura, detailed oil painting, by Mateusz Urbanowicz
+    /imagine a stegosaurus drawn by John Singer Sargent
+    /imagine a mysterious forest with many fireflies, trees with large roots covered in moss, green vegetation, Studio Ghibli animation style, Japanese animation film background,
+    /imagine the universe in our ancestors eyes
+    /imagine The inside of a gothic cathedral that looks like a tropical alien utopian jungle rainforest, dramatic cinematic lighting
+    /imagine A hero stands alone, artstation, highly detailed, cinematic
+    /imagine symmetric texture repetition on a tree on a beautiful mountain landscape
+    /imagine midcentury luchador mask, risograph
+    /imagine ultra detailed line drawing, black and white and red, pen and ink, high tech cyberpunk geisha with headphones and sunglasses and VR goggles in style of Shohei Otomo
+    /imagine interior of master bedroom in victorian mansion, window, dan mindel cinematography, 35mm, movie scene, pitch black, realistic lighting, perspective shots, moody atmosphere, light coming from outside, HDRI
+    /imagine the alien robot queen holding a party at the dome castle in HQ Cloud City during a technicolor sunset
+    /imagine corporate memphis style, mural, pride month, white background, vector, characters waving pride flags, celebration
+    /imagine abstract painting of coral reef
+    /imagine a calico cat taking a nap on a kiwi
+    /imagine Dreamy landscape depiction inspired by the works of Katsushika Hokusai, trending on artstation
+    /imagine garden bridge over swan pond monet garden lillies and hanging trees art
+    /imagine green dragon roosting above its lair in the ruins of a fantasy medieval city
+    /imagine rainwater flowing through a complex system of ancient stone pipes and a gargoyle watching
+    /imagine butterflies flit in a sunlit field. Hiroshige Japanese woodblock print.
+    /imagine hourglass heart, liquid, grand canyon background, fleeting, ephemerality of time
+    /imagine miniature watermelon delicately balanced on fingertip
+    /imagine a phone held extremely close against an xray of a skeleton sitting on a sofa, side by side view
+    /imagine eclipse in a tiny keychain bottle, dangling around a walking woman's purse, dynamic pose, macro photography
+    /imagine peaceful prehistoric marine lagaxy life, adventure, bold outlines, bold colors, psychedelic swirls patterns
+    /imagine kid's back, low angle, staring up at mobius spaceship landing in ancient china
+    /imagine Jupiter sitting on a chair on Saturn
+    /imagine marble sculpture of an orange, museum gallery, exhibit
+    /imagine dancing female astronaut exploring a floating food planet, bold colors, bold outlines, tshirt design
+    /imagine dead tree and castle shaped like the silhouette of a skull, negative space
+    /imagine cute little acorn doll with glasses in the forest, tilt shift, intricate details, 8k, photoshoot, contrast, studio lighting
+    /imagine dolphin submarine pod flying in space, saturn background, bold outlines
+    /imagine zebra strips manga portraits
+    /imagine an illustration of a wooden magic wand with an aura of void around it, stars glitter subtly around it, closeup, fantasy card game art trending on artstation concept art by Jason Chan`;
+    // tabs → 4 spaces, exactly like the site (EA3.split('\n').map(replace \t -> '    '))
+    const ART = ART_TEXT.split('\n').map(s => s.replace(/\t/g, '    '));
+
+    /* ── "Midjourney" figlet banner (overlay that fades up white at centre) ── */
+    const LOGO = [
+      String.raw` __  __ _    _  _                            `,
+      String.raw`|  \/  (_)__| |(_)___ _  _ _ _ _ _  ___ _  _ `,
+      String.raw`| |\/| | / _| || / _ \ || | '_| ' \/ -_) || |`,
+      String.raw`|_|  |_|_\__,_|/ \___/\_,_|_| |_||_\___|\_, |`,
+      String.raw`             |__/                       |__/ `,
+    ];
+
+    /* ── Math aliases + helpers (verbatim) ── */
+    const { sin, cos, round, sqrt, max, floor } = Math;
+    const clamp = (lo, x, hi) => (x > hi ? hi : x < lo ? lo : x);   // H5
+    const lerp  = (a, b, t) => a * (1 - t) + b * t;                 // hq1
+    const easeOutQuad = t => 1 - (1 - t) ** 2;                      // Eq1
+
+    /* ── 1. Swirl renderer → offscreen 2D canvas (faithful re-impl of IA3) ── */
+    function renderASCII(cv, dpr, cssW, cssH, elapsedMs) {
+      const ctx = cv.getContext('2d');
+      if (!ctx) return;
+
+      const H = elapsedMs * 0.001;                                 // time (seconds)
+      const U = easeOutQuad(clamp(0, elapsedMs * 0.001 * 0.5, 1)); // logo fade 0→1 over 2s
+
+      const W = cssW * dpr, Hh = cssH * dpr;                       // device pixels
+      cv.width = W; cv.height = Hh;
+
+      const rows = ART, R = rows.length;                           // 65 rows of art
+      ctx.fillStyle = '#061434'; ctx.fillRect(0, 0, W, Hh);
+
+      const cell = floor(Hh / R);                                  // dense path: no -4
+      const fontPx = max(1, round(cell * 1.3));                    // dense path: *1.3
+      const block = R * fontPx;
+      const top = round((Hh - block) / 2);
+
+      ctx.font = fontPx + 'px monospace';
+      const charW = ctx.measureText('M').width;
+      const cols = floor(W / charW);
+
+      const lx = max(0, round((cols - LOGO[0].length) / 2));       // logo col offset
+      const ly = round((R - LOGO.length) / 2);                     // logo row offset
+
+      for (let a = 0; a < R; a++) {
+        let line = '', over = '';
+        const ny = 1 - a * 2 / R;
+        for (let f = 0; f < cols; f++) {
+          const nx = f * 2 / cols - 1;
+          const rad = sqrt(nx * nx + ny * ny);
+          const ang = H * 0.1 / max(0.1, rad);                     // swirl: tighter at centre
+          const s = sin(ang), c = cos(ang);
+          const x = nx * c + ny * s;
+          const y = nx * s - ny * c;
+          const sx = floor((x + 1) / 2 * cols);
+          const sy = floor((y + 1) / 2 * R) % R;
+          let ch = (sx < 0 || sx >= cols || sy < 0 || sy >= R) ? ' '
+                 : (rows[sy][sx] ?? ' ');
+
+          if (a >= ly && a < ly + LOGO.length && f >= lx && f < lx + LOGO[0].length) {
+            const g = f - lx, o = a - ly;
+            const target = LOGO[o][g] ?? ch;
+            if (target !== ' ' ||
+                (g > 0 && LOGO[o][g - 1] !== ' ') ||
+                (g < LOGO[0].length - 1 && LOGO[o][g + 1] !== ' ')) {
+              ch = String.fromCharCode(round(lerp(ch.charCodeAt(0), target.charCodeAt(0), U)));
+              over += ch;
+            } else { over += ' '; }
+          }
+          line += ch;
+        }
+
+        ctx.fillStyle = 'hsl(220, 48%, 48%)';
+        ctx.font = fontPx + 'px monospace';
+        ctx.fillText(line, 0, top + a * fontPx);
+
+        if (a >= ly && a < ly + LOGO.length) {
+          ctx.fillStyle = 'rgba(255, 255, 255, ' + U + ')';
+          ctx.font = 'bold ' + fontPx + 'px monospace';
+          ctx.fillText(over, lx * charW, top + a * fontPx);
+        }
+      }
+    }
+
+    /* ── 2. CRT post-process shaders (verbatim from the bundle) ── */
+    const VERT = `
+      attribute vec4 aVertexPosition;
+      attribute vec2 aTextureCoord;
+      varying lowp vec2 vTextureCoord;
+      void main(void) {
+        gl_Position = aVertexPosition;
+        vTextureCoord = aTextureCoord;
+      }
+    `;
+
+    const FRAG = `
+      precision lowp float;
+      varying vec2 vTextureCoord;
+      uniform sampler2D uSampler;
+      uniform float uTime;
+      uniform vec2 uResolution;
+
+      float easeOutQuad(float t) { return t * (2.0 - t); }
+
+      void main() {
+        vec2 uv = vTextureCoord;
+
+        float curvatureDuration = 3000.0;
+        float curvatureProgress = min(uTime / curvatureDuration, 1.0);
+        float curvatureAmount = easeOutQuad(curvatureProgress);
+
+        vec2 curved_uv = uv * 2.0 - 1.0;
+        curved_uv *= 1.0 + (0.1 * curvatureAmount);
+        curved_uv *= 1.0 - (0.085 * curvatureAmount) + (0.05 * curvatureAmount) * pow(abs(curved_uv.yx), vec2(2.0));
+        curved_uv = (curved_uv * 0.5 + 0.5);
+
+        if (curved_uv.x < 0.0 || curved_uv.x > 1.0 || curved_uv.y < 0.0 || curved_uv.y > 1.0) {
+          gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+          return;
+        }
+
+        float decay = .005*exp(-uTime / 750.);
+        float r = texture2D(uSampler, vec2(curved_uv.x + decay, curved_uv.y)).r;
+        float g = texture2D(uSampler, curved_uv).g;
+        float b = texture2D(uSampler, vec2(curved_uv.x - decay, curved_uv.y)).b;
+
+        vec4 texColor = vec4(r, g, b, 1.0);
+
+        float scanline_speed = 0.0000005;
+        float scanline = max(0.0, sin((curved_uv.y + uTime * scanline_speed) * uResolution.y * 1.0)) * 0.5;
+        float scanline_opacity = 0.4;
+        texColor.rgb = mix(texColor.rgb, texColor.rgb - vec3(scanline), scanline_opacity);
+
+        float vignette = 1.0 - length(curved_uv - 0.5) * .7;
+        texColor.rgb *= vignette;
+
+        texColor.rgb *= 2.5;
+        texColor.rgb = 1.0 - exp(-texColor.rgb);
+
+        gl_FragColor = texColor;
+      }
+    `;
+
+    function compile(gl, type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src); gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        console.error('shader compile: ' + gl.getShaderInfoLog(sh));
+        gl.deleteShader(sh); return null;
+      }
+      return sh;
+    }
+
+    /* ── Wire it up ── */
+    const glCanvas = document.getElementById('gl');
+    const gl = glCanvas.getContext('webgl2', { alpha: true });
+    if (!gl) { console.error('WebGL2 not supported'); return; }
+    const off = document.createElement('canvas');   // offscreen 2D source
+
+    const vs = compile(gl, gl.VERTEX_SHADER, VERT);
+    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+
+    const loc = {
+      pos: gl.getAttribLocation(prog, 'aVertexPosition'),
+      tex: gl.getAttribLocation(prog, 'aTextureCoord'),
+      uSampler: gl.getUniformLocation(prog, 'uSampler'),
+      uTime: gl.getUniformLocation(prog, 'uTime'),
+      uResolution: gl.getUniformLocation(prog, 'uResolution'),
+    };
+
+    const posBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, 1, 1, 1, -1, -1, 1, -1]), gl.STATIC_DRAW);
+    const texBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    let start = 0;
+    function frame(now) {
+      if (!start) start = now;
+      const elapsed = now - start;
+
+      const rect = glCanvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cssW = rect.width, cssH = rect.height;
+
+      renderASCII(off, dpr, cssW, cssH, elapsed);
+
+      const W = Math.max(1, Math.floor(cssW * dpr)), H = Math.max(1, Math.floor(cssH * dpr));
+      glCanvas.width = W; glCanvas.height = H;
+      gl.viewport(0, 0, W, H);
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, off);
+
+      gl.useProgram(prog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.vertexAttribPointer(loc.pos, 2, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(loc.pos);
+      gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+      gl.vertexAttribPointer(loc.tex, 2, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(loc.tex);
+
+      gl.uniform1i(loc.uSampler, 0);
+      gl.uniform1f(loc.uTime, elapsed);
+      gl.uniform2f(loc.uResolution, W, H);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>

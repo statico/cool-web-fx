@@ -4,7 +4,7 @@
   <link rel="icon" href="data:,">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Midjourney Text Swirl</title>
+<title>Particle Text Vortex</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -24,7 +24,7 @@
 <canvas id="c"></canvas>
 <script>
 /**
- * Midjourney-style Text Swirl
+ * Particle Text Vortex
  * -----------------------------------------------------------------
  * Technique:
  *   1. Render a word to an offscreen canvas using a bold system font.
@@ -36,7 +36,7 @@
  *      new word (cycles through WORDS array).
  */
 
-const WORDS        = ['imagine', 'create', 'dream', 'explore'];
+const WORDS        = ['vortex', 'particles', 'swirl', 'bloom'];
 const STEP         = 4;          // pixel sampling stride on offscreen canvas
 const MAX_PARTICLES= 6000;       // hard cap
 const DPR_CAP      = 2;          // cap devicePixelRatio for GPU headroom
