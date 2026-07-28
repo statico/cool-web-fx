@@ -1,0 +1,54 @@
+[
+  {
+    "term": "Canvas 2D",
+    "def": "The browser's immediate-mode 2D drawing API, reached via <code>canvas.getContext(\"2d\")</code>. Effects redraw the whole surface every frame inside a <code>requestAnimationFrame</code> loop."
+  },
+  {
+    "term": "WebGL / WebGL2",
+    "def": "The browser's GPU-accelerated rendering API. Used here for effects that need per-pixel work — post-processing, raymarching, particle systems — that would be too slow on the CPU."
+  },
+  {
+    "term": "Shader",
+    "def": "A small program that runs on the GPU. A <em>vertex</em> shader positions geometry; a <em>fragment</em> shader computes the colour of each pixel. Written in GLSL and compiled at page load."
+  },
+  {
+    "term": "SDF (signed distance field)",
+    "def": "A function that returns the distance from any point to the nearest surface — negative inside, positive outside. Raymarchers step along a ray using that distance to find where it hits geometry, without any triangles."
+  },
+  {
+    "term": "Raymarching",
+    "def": "Rendering by walking a ray forward in steps until it reaches a surface, using an SDF to decide how far each step can safely be. Lets a fragment shader draw solid 3D shapes with no mesh."
+  },
+  {
+    "term": "Dither",
+    "def": "Deliberately adding a structured or random pattern when reducing colour or resolution, so that banding is broken up into texture. The ASCII-bar effect dithers a grayscale image down to glyph density."
+  },
+  {
+    "term": "Import map",
+    "def": "A <code>&lt;script type=\"importmap\"&gt;</code> block that maps bare module specifiers (<code>\"three\"</code>) to real URLs. It lets a plain HTML file use ES module imports from a CDN with no bundler."
+  },
+  {
+    "term": "Conic gradient",
+    "def": "A CSS gradient that sweeps around a centre point rather than along a line. Rotating one behind a mask is how the spinning-border effects get their moving rainbow edge."
+  },
+  {
+    "term": "<code>@property</code>",
+    "def": "A CSS at-rule that registers a custom property with a type, so the browser can interpolate it. Registering <code>--angle</code> as <code>&lt;angle&gt;</code> is what makes a gradient rotation animatable in pure CSS."
+  },
+  {
+    "term": "PMREM",
+    "def": "Prefiltered Mipmapped Radiance Environment Map. Three.js pre-blurs an environment map at several roughness levels so rough and glossy materials can both sample it cheaply for realistic reflections."
+  },
+  {
+    "term": "Tone mapping",
+    "def": "Compressing high-dynamic-range light values into the displayable 0–1 range. <code>ACESFilmicToneMapping</code> is used here to keep bright highlights from clipping to flat white."
+  },
+  {
+    "term": "Seeded PRNG",
+    "def": "A pseudo-random number generator started from a fixed seed, so it produces the same sequence on every page load. Keeps \"random\" layouts stable across reloads and screenshots."
+  },
+  {
+    "term": "Self-contained file",
+    "def": "In this gallery: one <code>.html</code> document with all CSS and JavaScript inline and no external assets, so it runs when opened directly from disk. See <a href=\"/skill.md\">skill.md</a>."
+  }
+]

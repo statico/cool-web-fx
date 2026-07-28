@@ -1,0 +1,88 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }],
+      "destination": "/index.md"
+    },
+    {
+      "source": "/glossary",
+      "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }],
+      "destination": "/glossary.md"
+    },
+    {
+      "source": "/demos/:slug",
+      "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }],
+      "destination": "/demos/:slug.md"
+    },
+    {
+      "source": "/effects/:slug.html",
+      "has": [{ "type": "header", "key": "accept", "value": ".*text/markdown.*" }],
+      "destination": "/effects/:slug.html.md"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/index.md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Link", "value": "<https://fx.statico.io/>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/glossary.md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Link", "value": "<https://fx.statico.io/glossary>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/demos/:slug.md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Link", "value": "<https://fx.statico.io/demos/:slug>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/effects/:slug.html.md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Link", "value": "<https://fx.statico.io/effects/:slug.html>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/effects/:slug.md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "Link", "value": "<https://fx.statico.io/effects/:slug.html>; rel=\"canonical\"" }
+      ]
+    },
+    {
+      "source": "/(.*).md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
+        { "key": "X-Robots-Tag", "value": "all" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Vary", "value": "Accept" },
+        { "key": "X-Robots-Tag", "value": "all" }
+      ]
+    },
+    {
+      "source": "/llms.txt",
+      "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [{ "key": "Content-Type", "value": "application/xml; charset=utf-8" }]
+    }
+  ]
+}

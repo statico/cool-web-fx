@@ -56,6 +56,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Warped Text Wall</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character.">
+  <link rel="canonical" href="https://fx.statico.io/effects/nell-text-warp.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/nell-text-warp.html.md" title="Warped Text Wall (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Warped Text Wall">
+  <meta property="og:description" content="A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character.">
+  <meta property="og:url" content="https://fx.statico.io/effects/nell-text-warp.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Warped Text Wall">
+  <meta name="twitter:description" content="A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/nell-text-warp.html#effect","name":"Warped Text Wall","url":"https://fx.statico.io/effects/nell-text-warp.html","abstract":"A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character.","description":"A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://nell.ai/","mainEntityOfPage":"https://fx.statico.io/demos/nell-text-warp","dateModified":"2026-07-27T17:24:00-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/nell-text-warp.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Warped Text Wall","item":"https://fx.statico.io/demos/nell-text-warp"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/nell-text-warp.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -103,6 +118,28 @@
   </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Warped Text Wall</h1>
+    <p>A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character.</p>
+    <h2>How it works</h2>
+    <p>This is the full-bleed hero on nell.ai — a wall of text you can drag sideways, readable along the top and dissolving into a smear as it falls. The React component is called NellShaderCanvas, which is a misnomer worth calling out: there is no WebGL anywhere in it. It is a plain 2D canvas painting monospace characters with batched fillText. Everything below was read out of their minified chunk (_next/static/chunks/8147-*.js), so this is a port of the real pipeline rather than a guess at the look.</p>
+    <p>The column wall. A ~700-word company text is split on whitespace into words. The code then builds an index list f of *mid-sentence entry points* — scanning from word 9 to length - 9, it keeps every position whose previous word does not end a sentence (/[.!?]["")\]]*$/). Those words are laid out into narrow vertical columns: pitch 294.21875px, column width 283.828125px, left pad 10.390625px, 28 columns per block, giving a block width of 8238.125px (294.21875 × 28, exactly). Column *n* takes the text rotated to begin at word f[(37n + 19) % f.length] — so every column opens mid-thought rather than on a tidy capital — concatenates that rotation to itself four times so it can never run dry, then greedy-word-wraps it to floor(283.828125 / charWidth) characters. One quirk is preserved faithfully: because the inner loop variable shadows the outer one in their minified code, column content repeats every 28 columns while column positions keep advancing — so extra blocks lengthen the strip without ever introducing new text.</p>
+    <p>The warp is a resample, not a transform. The wall is rendered as a character grid — 10px monospace, 13px line height, with charWidth measured once as measureText("M" × 20).width / 20. For every grid cell the renderer computes a displacement and then samples the character from the displaced position instead of the cell's own. Nothing is rotated, skewed, or scaled; each cell simply asks a different part of the text wall what letter it ought to be. That resampling through a flow field is the whole effect.</p>
+    <p>The field is classic 3D value noise: hash fract(sin(127.1x + 311.7y + 74.7z) * 43758.5453123) * 2 - 1, smoothstep-interpolated (t*t*(3-2t)) trilinearly across the lattice. Per cell, with o = max(rectWidth, rectHeight) and t in seconds, a swirl amount s = 1.2 + 2.9 * |noise3(x/o*3, y/o*3 - 0.1t, 0.03t)| warps the lookup coordinates into h = (x/o - 0.5) * s * 2 and u = (y/o - 0.5) * s - 0.08t at depth d = 0.1t, and the displacement is [620 * noise3(h + 31.7, u, d) * l, 780 * noise3(h, u + 47.3, d) * l]. Time enters only as the noise's third dimension (0.1t) plus that slow -0.08t vertical drift, so the field flows rather than jitters.</p>
+    <p>l is the falloff, and it is why the thing stays legible. It is anchored at the top of the canvas — their anchor term is always 0 — and computed as the squared normalized Y, so the first rows are essentially undisplaced and the smear grows quadratically as your eye travels down. Crisp text at the top, illegible pink weather at the bottom.</p>
+    <p>The call to action is stamped into the grid, not drawn over it. On the real site JOIN THE WAITLIST is written into the row nearest the visual-viewport centre; those cells always render the CTA character, and the only thing that animates is their colour. The reveal order is a hash shuffle — character indices sorted by fract(sin((i+1) * 92821.731) * 1e4) — each index flipping from ink to white once elapsed progress passes (order + 1) / count, across 3.2 seconds. The words don't type in; they precipitate out of the noise in a fixed, deterministic scatter.</p>
+    <p>Interaction is one number. Mouse wheel (whichever of deltaX/deltaY is larger in magnitude), pointer drag, and the Arrow keys (one column pitch per press) all feed a single target offset, clamped to [-(8238.125 - innerWidth + 294.21875), 0], which the renderer eases toward with current += (target - current) * 0.16. Pointer-down adds a grabbing-cursor class, and presses landing on links, buttons, inputs, or dialogs are excluded so the page stays usable. prefers-reduced-motion freezes time — it renders the finished 3.2s state and redraws only on interaction — and viewports &lt;= 767px throttle to 24fps with devicePixelRatio capped at 1.5. For performance, runs of consecutive same-coloured characters are accumulated and flushed as a single fillText rather than one call per glyph. The palette comes from CSS custom properties: paper hsl(0 100% 18.2%) (deep oxblood), ink hsl(351.4 100% 65.7%) (hot pink-red), CTA hsl(0 0% 100%).</p>
+    <p>Two honest deviations. (1) The text here is placeholder lorem ipsum, not Nell's own company text. The effect is the layout-and-warp pipeline, not their marketing copy, and the text lives in a single clearly-marked constant you can swap for any long body of writing. (2) The CTA reads DRAG TO EXPLORE instead of JOIN THE WAITLIST, which doubles as a usage hint. Every geometry, noise, warp, reveal, easing, and clamp constant above is kept exactly as captured. Fully self-contained: no external scripts, fonts, or images — just the system monospace stack and one 2D canvas.</p>
+    <p>One further concession to living in a gallery: the original calls preventDefault on every wheel event, which costs it nothing on a page that never scrolls but would trap the host page's scroll inside an iframe. Here the wheel handler stands down when the file detects it is framed — drag and the arrow keys still move the strip.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/nell-text-warp.html.md">https://fx.statico.io/effects/nell-text-warp.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/nell-text-warp">https://fx.statico.io/demos/nell-text-warp</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Nell (https://nell.ai/) — credit to Nell. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <canvas id="wall" aria-hidden="true"></canvas>
   <div id="fallback">This effect needs a 2D canvas context.</div>
 

@@ -26,6 +26,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Midjourney — Prompt Vortex</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.">
+  <link rel="canonical" href="https://fx.statico.io/effects/midjourney-home.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/midjourney-home.html.md" title="Midjourney Prompt Vortex (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Midjourney Prompt Vortex">
+  <meta property="og:description" content="A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.">
+  <meta property="og:url" content="https://fx.statico.io/effects/midjourney-home.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Midjourney Prompt Vortex">
+  <meta name="twitter:description" content="A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/midjourney-home.html#effect","name":"Midjourney Prompt Vortex","url":"https://fx.statico.io/effects/midjourney-home.html","abstract":"A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.","description":"A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://www.midjourney.com/home","mainEntityOfPage":"https://fx.statico.io/demos/midjourney-home","dateModified":"2026-07-17T20:52:02-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/midjourney-home.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Midjourney Prompt Vortex","item":"https://fx.statico.io/demos/midjourney-home"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/midjourney-home.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #06051d; }
@@ -39,6 +54,23 @@
   </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Midjourney Prompt Vortex</h1>
+    <p>A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.</p>
+    <h2>How it works</h2>
+    <p>This is a faithful port of the actual &lt;canvas&gt; hero on midjourney.com/home — not the image grid further down the page, which is just static PNGs. The real effect is a two-stage pipeline pulled verbatim from Midjourney's clientSideEntry bundle.</p>
+    <p>Stage 1 — the swirl (offscreen 2D canvas). A block of 65 genuine Midjourney /imagine prompts (the same wall of text the site ships) is treated as a character grid. For every output cell the renderer doesn't just copy the source character — it computes the cell's normalized position (nx, ny), its radius from centre, and a rotation angle ang = time*0.1 / max(0.1, radius), then samples the source grid at the rotated coordinate. Because the angle grows as radius shrinks, the centre spins far faster than the edges, winding the prompt wall into an ever-tightening vortex. Text is drawn in hsl(220, 48%, 48%) on a #061434 field, one fillText per row. The Midjourney figlet banner is centred on top: each of its glyphs is produced by lerp-ing the underlying swirl character's char-code toward the banner glyph's char-code over an eased 1 - (1 - t)2 ramp, while a white overlay (rgba(255,255,255,U)) fades in over the first two seconds — so the wordmark appears to crystallize out of the noise.</p>
+    <p>Stage 2 — the CRT shader (WebGL2).** That 2D canvas is uploaded as a texture each frame and drawn through Midjourney's real fragment shader. It applies barrel curvature that eases in over 3000 ms (easeOutQuad), an RGB chroma split of 0.005 * exp(-uTime/750) that decays away over the first second, moving subtractive scanlines (sin((uv.y + uTime*5e-7) * uResolution.y) at 0.4 opacity), a 1 - length(uv-0.5)*0.7 vignette, a 2.5x brightness boost, and an 1 - exp(-c) soft-clip to keep highlights from blowing out. Pixels pushed outside the curved frame are output transparent, letting the page's linear-gradient(0deg, #06051d 30%, #061434) show through the rounded corners.</p>
+    <p>Everything is reconstructed from the source: both GLSL shaders, the swirl maths (IA3), the clamp/lerp/ease helpers, the exact colours and timings, and the prompt text itself. It is fully standalone — no CDN, no fonts, no images. The only deviation is a devicePixelRatio cap of 2 for performance; the live site uses the raw ratio.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/midjourney-home.html.md">https://fx.statico.io/effects/midjourney-home.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/midjourney-home">https://fx.statico.io/demos/midjourney-home</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Midjourney (https://www.midjourney.com/home) — credit to Midjourney. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <div id="stage"><canvas id="gl"></canvas></div>
 
   <script>
