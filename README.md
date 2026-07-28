@@ -28,6 +28,7 @@ independent recreation of the look. Credit always goes to the original site.
 | Rotating Rainbow Border Button | A pill button whose thin gradient outline spins forever, with a blurred glow that blooms on hover. | [Resend](https://resend.com/home) |
 | Conic Gradient Sweep Border | A card whose border is a bright arc that sweeps around the perimeter, painted with a rotating conic gradient. | [Resend](https://resend.com/home) |
 | Vertical-Line Glyph Dither | A slowly tumbling extruded glyph, raymarched and re-rendered as vertical ASCII-style bars whose width tracks brightness, with a headline in front. | [CodeRabbit](https://app.coderabbit.ai/login) |
+| Warped Text Wall | A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character. | [Nell](https://nell.ai/) |
 
 ## Develop
 
