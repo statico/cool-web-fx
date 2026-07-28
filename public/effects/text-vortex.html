@@ -5,6 +5,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Particle Text Vortex</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word.">
+  <link rel="canonical" href="https://fx.statico.io/effects/text-vortex.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/text-vortex.html.md" title="Particle Text Vortex (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Particle Text Vortex">
+  <meta property="og:description" content="Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word.">
+  <meta property="og:url" content="https://fx.statico.io/effects/text-vortex.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Particle Text Vortex">
+  <meta name="twitter:description" content="Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/text-vortex.html#effect","name":"Particle Text Vortex","url":"https://fx.statico.io/effects/text-vortex.html","abstract":"Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word.","description":"Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://github.com/statico/cool-web-fx","mainEntityOfPage":"https://fx.statico.io/demos/text-vortex","dateModified":"2026-07-17T20:52:02-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/text-vortex.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Particle Text Vortex","item":"https://fx.statico.io/demos/text-vortex"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/text-vortex.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -21,6 +36,24 @@
 </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Particle Text Vortex</h1>
+    <p>Luminous particles spiral out of a vortex and settle into glowing typographic forms, then dissolve and reform the next word.</p>
+    <h2>How it works</h2>
+    <p>Each word is rendered at large size into an offscreen &lt;canvas&gt;, then getImageData() collects every lit pixel. Those pixels — sampled at a stride of every 4px to cap the particle count near 6 000 — become the target positions that particles spring toward.</p>
+    <p>At the start of each cycle particles are seeded at random positions on a wide spiral around the canvas centre. A spring-damper model (velocity += (target - pos) * k; velocity *= damping) pulls each particle inward. A per-particle curl nudge — a slow sinusoidal perpendicular offset keyed to the particle's phase and performance.now() — keeps the settled shape from ever looking frozen.</p>
+    <p>The demo cycles through a list of words: after a settle dwell, all particles enter a dissolve phase where they drift outward along their current angle and fade, then the next word's targets are assigned and particles fly in from a fresh vortex scatter. A radial gradient drawn in 'lighter' composite mode adds a soft backlit glow around the letterforms while they form and hold.</p>
+    <p>Performance stays smooth by capping devicePixelRatio at 2, thinning sampled points to MAX_PARTICLES, and using a semi-transparent clear each frame (rgba(10,10,15,0.30)) to leave a motion-blur trail without a second layer.</p>
+    <p>This is an original effect built for this gallery — it is not a recreation of any particular website.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/text-vortex.html.md">https://fx.statico.io/effects/text-vortex.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/text-vortex">https://fx.statico.io/demos/text-vortex</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Original effect (https://github.com/statico/cool-web-fx) — credit to Original effect built for this gallery (not a recreation of any specific site). This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
 <canvas id="c"></canvas>
 <script>
 /**

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Base from '../../layouts/Base.astro';
+import { canonicalUrl, lastModified, SITE_NAME } from '../../lib/site';
 
 const base = import.meta.env.BASE_URL;
 
@@ -33,8 +34,47 @@ const techniqueHtml = (meta.technique || '')
   .split(/\n\s*\n/)
   .map((p: string) => `<p>${inline(p.trim())}</p>`)
   .join('\n');
+
+const pageUrl = canonicalUrl(`/demos/${meta.slug}`);
+const dateModified = lastModified(`public/effects/${meta.slug}.html`);
+
+const jsonLd = [
+  {
+    '@type': 'SoftwareSourceCode',
+    '@id': `${pageUrl}#effect`,
+    name: meta.title,
+    url: pageUrl,
+    abstract: meta.blurb,
+    description: meta.blurb,
+    programmingLanguage: 'HTML',
+    codeSampleType: 'full solution',
+    runtimePlatform: 'Web browser',
+    codeRepository: 'https://github.com/statico/cool-web-fx',
+    targetProduct: { '@type': 'SoftwareApplication', name: meta.title, applicationCategory: 'WebApplication' },
+    license: 'https://unlicense.org/',
+    isBasedOn: meta.sourceUrl,
+    creditText: meta.credit ? `Effect originally seen on ${meta.sourceName} (${meta.credit})` : undefined,
+    dateModified,
+    inLanguage: 'en',
+    isPartOf: { '@id': `${canonicalUrl('/')}#website` },
+  },
+  {
+    '@type': 'BreadcrumbList',
+    '@id': `${pageUrl}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: canonicalUrl('/') },
+      { '@type': 'ListItem', position: 2, name: 'Effects', item: canonicalUrl('/#effects') },
+      { '@type': 'ListItem', position: 3, name: meta.title, item: pageUrl },
+    ],
+  },
+];
 ---
-<Base title={meta.title}>
+<Base
+  title={meta.title}
+  description={meta.blurb}
+  mdPath={`/demos/${meta.slug}.md`}
+  jsonLd={jsonLd}
+>
   <div class="demo-main">
     <div class="crumb"><a href={base}>← all effects</a></div>
 
@@ -69,7 +109,7 @@ const techniqueHtml = (meta.technique || '')
 
     <section class="block">
       <h3>Code — copy &amp; paste this whole file</h3>
-      <pre class="code"><code id="code">{rawCode}</code></pre>
+      <pre class="code" data-language="html"><code id="code" class="language-html">{rawCode}</code></pre>
     </section>
 
     <section class="block credit">
@@ -95,7 +135,7 @@ const techniqueHtml = (meta.technique || '')
           <button class="btn" id="closeBtn">Close ✕</button>
         </div>
       </div>
-      <pre class="code"><code>{rawCode}</code></pre>
+      <pre class="code" data-language="html"><code class="language-html">{rawCode}</code></pre>
     </div>
   </div>
 

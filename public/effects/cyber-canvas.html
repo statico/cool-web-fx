@@ -23,6 +23,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cyber Ambient Overlay</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.">
+  <link rel="canonical" href="https://fx.statico.io/effects/cyber-canvas.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/cyber-canvas.html.md" title="Cyber Ambient Overlay (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Cyber Ambient Overlay">
+  <meta property="og:description" content="A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.">
+  <meta property="og:url" content="https://fx.statico.io/effects/cyber-canvas.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Cyber Ambient Overlay">
+  <meta name="twitter:description" content="A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/cyber-canvas.html#effect","name":"Cyber Ambient Overlay","url":"https://fx.statico.io/effects/cyber-canvas.html","abstract":"A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.","description":"A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://chatgpt.com/cyber","mainEntityOfPage":"https://fx.statico.io/demos/cyber-canvas","dateModified":"2026-07-17T20:52:02-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/cyber-canvas.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Cyber Ambient Overlay","item":"https://fx.statico.io/demos/cyber-canvas"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/cyber-canvas.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -57,6 +72,23 @@
   </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Cyber Ambient Overlay</h1>
+    <p>A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.</p>
+    <h2>How it works</h2>
+    <p>The real /cyber header background is the #cyber-ambient-overlay-canvas 2D &lt;canvas&gt; from cdn/assets/cyber-g632ua04.js (the De() component) — not a particle network. The field is laid out on a fixed 13px lattice. A pool of glyphs (count clamp(cols*rows/72, 56, 180)) is scattered across the grid, each drawn from the 19-character set ` .:-=+*#%@&lt;&gt;/\[]{}01  using the 13px ui-monospace font.</p>
+    <p>The motion comes from three invisible circular ripple waves — small, medium, and large — that endlessly expand from points in the top 82% of the canvas and respawn when they reach their target radius. Each wave has its own speed (small 0.34–0.46, medium 0.28–0.38, large 0.22–0.32 px/frame), band thickness (16/22/30 +random), baseStrength (0.6/0.82/1.0) and a targetRadius scaled to a fraction of the canvas diagonal (0.4/0.62/0.85 ×). A wave's strength decays as baseStrength·(1−r/target)², so each ripple fades as it grows. New waves are spawned at least min(W,H)·0.28 away from the previous one.</p>
+    <p>Each wave carries three concentric gaussian rings (the crest plus two trailing rings offset by 13·3.2 and 13·6.2 px). For every glyph these rings produce two things: a radial displacement that physically shoves the character outward from the wave centre ((d·1.1 + f·0.78 + p·0.48)·13·0.7·strength), and an intensity that drives brightness. Intensity is modulated by sin(time/950) and a vertical fade clamp(1 − y/(H·1.06), 0.22, 1) so the top of the field stays brightest. Where intensity is high the glyph is recolored in full-saturation rainbow HSL (hsla(hue,100%,78%,…) in dark mode, hue from hueOffset + time·0.045 + g·90), gains a 4 + g·8 px blur shadow, and advances its character index. Glyphs also random-walk: a 10% per-frame chance to step one cell, and a 1.2% chance to teleport.</p>
+    <p>Underneath the glyphs, drawGlow() paints faint hsla(hue,46%,60%,~0.06) squares pulsing along the same ring crests, and a dim rgb(108,110,138) grid is stroked at 6% alpha. Each frame begins by filling a translucent rgba(33,33,33,0.18) rectangle (the #212121 dark surface color) which produces the fade-trail rather than clearing the canvas. The loop is throttled to ~24 fps (1000/24 ms gate), the device pixel ratio is clamped to 1, the canvas opacity is 0.72, and a linear-gradient` mask dissolves the field toward the bottom — all matching the captured values. Dark-theme constants are hard-coded here since the standalone has no ChatGPT theme tokens to sample.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/cyber-canvas.html.md">https://fx.statico.io/effects/cyber-canvas.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/cyber-canvas">https://fx.statico.io/demos/cyber-canvas</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on ChatGPT (https://chatgpt.com/cyber) — credit to OpenAI / ChatGPT. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <div id="wrap">
     <canvas id="cyber-ambient-overlay-canvas"></canvas>
   </div>

@@ -2,9 +2,9 @@
 <!--
   Meshy — "3D, On Command" hero/CTA section background
   ─────────────────────────────────────────────────────────────────────────────
-  Faithful rebuild of the background behind Meshy's "3D, On Command" call-to-
-  action band (https://www.meshy.ai/). The real effect is NOT a perspective grid
-  or dust motes — it is a pure CSS/SVG composition:
+  Rebuild of the background behind Meshy's "3D, On Command" call-to-action band
+  at the bottom of https://www.meshy.ai/. The composition is CSS/SVG plus one
+  canvas particle layer:
 
     • a 40px SVG <pattern> grid, skewed skew-y(-18deg), drawn in white/5 with
       mix-blend-overlay, fading out top→bottom via a linear-gradient mask;
@@ -12,13 +12,26 @@
     • a lime gradient wash  from #e1f9a7/30 → #c5f955/30  masked by a
       radial-gradient(farthest-side at top) so it blooms from the top center;
     • a big blurred white blob (blur 26px) as a soft volumetric light core;
+    • a full-bleed <canvas> of drifting, twinkling dust motes;
     • the whole group sits at low opacity over a near-black background.
 
-  The only animation in the real section is the CTA button: a flowing lime
-  gradient (cta-flow, 5s) and a conic-gradient border ring that spins (7s).
-  Both are reproduced verbatim. Everything below is self-contained — no CDN,
-  no fonts, no images. Real values extracted from the Meshy build chunk
-  11wz9_xx-0j_m.js and stylesheet 14ac6qycc6c_g.css.
+  The canvas layer was measured off the live site: a 1216x447 <canvas
+  data-generated="true" aria-hidden="true"> inside an `opacity-0` wrapper that
+  fades in when the band scrolls into view. Sampling it shows ~1.6k lit pixels,
+  a longest horizontal run of only 4-6px (so: small round motes, not panels),
+  spread across 180 of 240 coarse buckets, with ~64% of buckets changing every
+  600ms — constant drift plus per-mote twinkle. Mote colour reads as a pale
+  lime-white (~rgb(237,255,196)) at up to ~0.75 alpha.
+
+  On the live site the 11 lit grid cells are static (computed opacity and fill
+  never change, no CSS animation bound). The gentle panel flicker below is a
+  deliberate addition, not a reproduction — drop the `.grid .lit` animation if
+  you want to match the original exactly.
+
+  The CTA button matches the real one: a flowing lime gradient (cta-flow, 5s)
+  and a conic-gradient border ring that spins (7s). Everything below is
+  self-contained — no CDN, no fonts, no images. Static values extracted from
+  the Meshy build chunk 11wz9_xx-0j_m.js and stylesheet 14ac6qycc6c_g.css.
 -->
 <html lang="en">
 <head>
@@ -26,6 +39,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meshy — 3D, On Command</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A skewed white grid blooms out of a lime light haze while pale dust motes drift and twinkle across the band, behind a bold heading and a flowing gradient CTA.">
+  <link rel="canonical" href="https://fx.statico.io/effects/meshy-grid.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/meshy-grid.html.md" title="On-Command Grid Bloom (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="On-Command Grid Bloom">
+  <meta property="og:description" content="A skewed white grid blooms out of a lime light haze while pale dust motes drift and twinkle across the band, behind a bold heading and a flowing gradient CTA.">
+  <meta property="og:url" content="https://fx.statico.io/effects/meshy-grid.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="On-Command Grid Bloom">
+  <meta name="twitter:description" content="A skewed white grid blooms out of a lime light haze while pale dust motes drift and twinkle across the band, behind a bold heading and a flowing gradient CTA.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/meshy-grid.html#effect","name":"On-Command Grid Bloom","url":"https://fx.statico.io/effects/meshy-grid.html","abstract":"A skewed white grid blooms out of a lime light haze while pale dust motes drift and twinkle across the band, behind a bold heading and a flowing gradient CTA.","description":"A skewed white grid blooms out of a lime light haze while pale dust motes drift and twinkle across the band, behind a bold heading and a flowing gradient CTA.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://www.meshy.ai/","mainEntityOfPage":"https://fx.statico.io/demos/meshy-grid","dateModified":"2026-07-17T20:52:02-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/meshy-grid.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"On-Command Grid Bloom","item":"https://fx.statico.io/demos/meshy-grid"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/meshy-grid.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     /* @property lets the conic border angle animate (real site uses this) */
     @property --cta-border-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
@@ -120,6 +148,33 @@
       overflow: visible;
     }
 
+    /* ── Dust motes ─────────────────────────────────────────────────────────
+       Its own layer, NOT inside .bg — on the real site the canvas sits in a
+       sibling `absolute inset-0 size-full` wrapper, so it escapes the beam mask
+       and the 0.5 group opacity and covers the whole band. */
+    .motes {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      /* keep motes densest under the bloom, thinning toward the bottom */
+      -webkit-mask-image: linear-gradient(#fff 30%, rgba(255,255,255,0.45) 65%, transparent);
+              mask-image: linear-gradient(#fff 30%, rgba(255,255,255,0.45) 65%, transparent);
+    }
+
+    /* Lit grid cells. The slow brightness flicker is an addition — see the
+       note at the top of this file; the real site's cells are static. */
+    .grid .lit rect {
+      animation: cell-flicker 7s ease-in-out infinite;
+    }
+    @keyframes cell-flicker {
+      0%, 100%  { opacity: 0.55; }
+      40%       { opacity: 1;    }
+      62%       { opacity: 0.7;  }
+    }
+
     /* Soft white volumetric light core (real: blurred path, blur 26px). */
     .lightblob {
       position: absolute;
@@ -205,12 +260,34 @@
     @keyframes cta-arrow-loop  { to { transform: translateX(0); } }
 
     @media (prefers-reduced-motion: reduce) {
-      .cta, .cta .ring { animation: none; }
+      .cta, .cta .ring, .grid .lit rect { animation: none; }
     }
   </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>On-Command Grid Bloom</h1>
+    <p>A skewed white grid blooms out of a lime light haze while pale dust motes drift and twinkle across the band, behind a bold heading and a flowing gradient CTA.</p>
+    <h2>How it works</h2>
+    <p>This rebuilds the background behind Meshy's "3D, On Command" call-to-action band at the bottom of the page. The composition is CSS/SVG plus one canvas particle layer.</p>
+    <p>The grid is an SVG &lt;pattern&gt; of 40×40 cells whose single L-shaped path M.5 40V.5H40 draws the left and top edge of each cell, rendered in white/5 with mix-blend-mode: overlay. The whole sheet is skewY(-18deg) and fade-masked top-to-bottom. On top sit 11 hand-placed "lit" cells at the captured coordinates [[14,4],[12,5],[16,6],[20,8],[22,9],[24,7],[3,3],[2,1],[7,3],[10,6],[12,2]].</p>
+    <p>The lime glow is a linear-gradient(to right, #e1f9a7/30, #c5f955/30) wash masked by radial-gradient(farthest-side at top, white, transparent) so it blooms from the top-center, plus a large blurred white blob (blur(26px)) as a soft volumetric core.</p>
+    <p>The dust motes are a &lt;canvas&gt; layer, matching the real site — which mounts a 1216×447 &lt;canvas data-generated="true" aria-hidden="true"&gt; inside an opacity-0 wrapper that fades in when the band scrolls into view. Sampling the live canvas shows roughly 1,600 lit pixels with a longest horizontal run of only 4–6px (small round motes, not panels), spread across 180 of 240 coarse buckets, with about 64% of buckets changing every 600ms — constant drift plus per-mote twinkle. Motes read as a pale lime-white, near rgb(237,255,196), at up to ~0.75 alpha. The recreation seeds a stable PRNG, scales mote count by area, and gives each mote an upward drift, a sine sway, and its own twinkle frequency; each is drawn as a small bright core inside a wider lime glow.</p>
+    <p>One deliberate divergence: on the live site the 11 lit grid cells are static — their computed opacity and fill never change and no CSS animation is bound. The gentle out-of-phase cell-flicker here is an addition; delete the .grid .lit rect rule to match the original exactly.</p>
+    <p>The CTA button matches the real one: a linear-gradient(155.056deg, #AAFFCA, #BAFF4A, #AAFFCA) at 200% size flowing via cta-flow (5s), and a conic-gradient border ring — masked with mask-composite: exclude to a 2px rim — spinning through a CSS @property --cta-border-angle over 7s. Accent green is Meshy's token --color-accent-base: #c5f955 on #0e0e0e. Fully self-contained; motion is disabled under prefers-reduced-motion.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/meshy-grid.html.md">https://fx.statico.io/effects/meshy-grid.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/meshy-grid">https://fx.statico.io/demos/meshy-grid</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Meshy (https://www.meshy.ai/) — credit to Meshy AI. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <section class="section">
+
+    <!-- ── Dust motes (own layer, above the light group) ────────────────── -->
+    <canvas class="motes" aria-hidden="true"></canvas>
 
     <!-- ── Background light group (grid + lime bloom + light core) ──────── -->
     <div class="bg">
@@ -230,19 +307,20 @@
             </pattern>
           </defs>
           <rect width="100%" height="100%" stroke-width="0" fill="url(#meshyGrid)"></rect>
-          <!-- 11 lit cells, offset (-12,4) to match the pattern origin -->
-          <svg x="-12" y="4" class="overflow-visible">
-            <rect stroke-width="0" width="41" height="41" x="560" y="160"></rect>
-            <rect stroke-width="0" width="41" height="41" x="480" y="200"></rect>
-            <rect stroke-width="0" width="41" height="41" x="640" y="240"></rect>
-            <rect stroke-width="0" width="41" height="41" x="800" y="320"></rect>
-            <rect stroke-width="0" width="41" height="41" x="880" y="360"></rect>
-            <rect stroke-width="0" width="41" height="41" x="960" y="280"></rect>
-            <rect stroke-width="0" width="41" height="41" x="120" y="120"></rect>
-            <rect stroke-width="0" width="41" height="41" x="80"  y="40"></rect>
-            <rect stroke-width="0" width="41" height="41" x="280" y="120"></rect>
-            <rect stroke-width="0" width="41" height="41" x="400" y="240"></rect>
-            <rect stroke-width="0" width="41" height="41" x="480" y="80"></rect>
+          <!-- 11 lit cells, offset (-12,4) to match the pattern origin.
+               Staggered negative delays so they flicker out of phase. -->
+          <svg x="-12" y="4" class="overflow-visible lit">
+            <rect stroke-width="0" width="41" height="41" x="560" y="160" style="animation-delay:-0.0s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="480" y="200" style="animation-delay:-2.6s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="640" y="240" style="animation-delay:-5.1s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="800" y="320" style="animation-delay:-1.3s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="880" y="360" style="animation-delay:-3.9s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="960" y="280" style="animation-delay:-6.2s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="120" y="120" style="animation-delay:-0.8s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="80"  y="40"  style="animation-delay:-4.4s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="280" y="120" style="animation-delay:-2.0s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="400" y="240" style="animation-delay:-5.7s"></rect>
+            <rect stroke-width="0" width="41" height="41" x="480" y="80"  style="animation-delay:-3.2s"></rect>
           </svg>
         </svg>
       </div>
@@ -268,5 +346,95 @@
       </span>
     </button>
   </section>
+
+  <script>
+    // ── Dust motes ────────────────────────────────────────────────────────
+    // Small pale-lime particles that drift up and sway, each twinkling on its
+    // own sine. Density, size and colour are taken from the measurements in the
+    // header comment: ~4-6px motes, pale lime-white, up to ~0.75 alpha, spread
+    // across the whole band and densest under the bloom.
+    (function () {
+      const canvas = document.querySelector('.motes');
+      const ctx = canvas.getContext('2d');
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Mote count scales with area so the density matches at any viewport.
+      // Tuned against the live canvas: ~0.3% lit-pixel coverage. Slightly
+      // brighter than the original so the field still reads in a thumbnail.
+      const DENSITY = 150 / (1216 * 447);
+      let motes = [];
+      let w = 0, h = 0, dpr = 1;
+
+      // Deterministic PRNG so the layout is stable across reloads/screenshots.
+      let seed = 0x9e3779b9;
+      const rnd = () => (((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296));
+
+      function build() {
+        const rect = canvas.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = Math.max(1, rect.width);
+        h = Math.max(1, rect.height);
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        seed = 0x9e3779b9;
+        const count = Math.round(w * h * DENSITY);
+        motes = Array.from({ length: count }, () => ({
+          x: rnd() * w,
+          y: rnd() * h,
+          r: 0.5 + rnd() * 1.1,            // 1-3.2px across, plus glow
+          drift: 3 + rnd() * 9,            // px/sec upward
+          sway: 6 + rnd() * 14,            // px of horizontal travel
+          swaySpeed: 0.15 + rnd() * 0.35,
+          phase: rnd() * Math.PI * 2,
+          twinkle: 0.5 + rnd() * 1.1,      // twinkle cycles/sec
+          base: 0.18 + rnd() * 0.38,       // baseline alpha
+        }));
+      }
+
+      function draw(t) {
+        ctx.clearRect(0, 0, w, h);
+        for (const m of motes) {
+          // upward drift, wrapping at the top
+          const y = ((m.y - m.drift * t) % h + h) % h;
+          const x = m.x + Math.sin(t * m.swaySpeed + m.phase) * m.sway;
+          // per-mote twinkle, never fully dark
+          const a = m.base * (0.55 + 0.45 * Math.sin(t * m.twinkle * Math.PI * 2 + m.phase));
+          // soft glow: a wide faint disc under a small bright core
+          const g = ctx.createRadialGradient(x, y, 0, x, y, m.r * 3);
+          g.addColorStop(0, `rgba(237,255,196,${a.toFixed(3)})`);
+          g.addColorStop(0.4, `rgba(197,249,85,${(a * 0.35).toFixed(3)})`);
+          g.addColorStop(1, 'rgba(197,249,85,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, y, m.r * 3, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = `rgba(245,255,225,${Math.min(1, a * 1.15).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(x, y, m.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      let raf = 0;
+      const start = performance.now();
+      function frame(now) {
+        draw((now - start) / 1000);
+        raf = requestAnimationFrame(frame);
+      }
+
+      function init() {
+        cancelAnimationFrame(raf);
+        build();
+        if (reduced) draw(0);            // one static field, no animation
+        else raf = requestAnimationFrame(frame);
+      }
+
+      addEventListener('resize', init);
+      init();
+    })();
+  </script>
 </body>
 </html>

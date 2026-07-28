@@ -5,9 +5,12 @@
 //
 // Usage:
 //   npm i -D playwright && npx playwright install chromium   # one-time
-//   npm run thumbs
+//   npm run thumbs                    # every effect
+//   npm run thumbs -- meshy-grid      # just these slugs
 //
 // Slugs are derived from src/demos/*.json so this stays in sync automatically.
+// Pass slugs to recapture a subset — useful because the heavier WebGL effects
+// can crash headless Chromium, which would otherwise abort the whole run.
 
 import { createServer } from 'node:http';
 import { readFile, readdir, mkdir } from 'node:fs/promises';
@@ -52,9 +55,17 @@ async function main() {
   });
 
   await mkdir(thumbsDir, { recursive: true });
-  const slugs = (await readdir(demosDir))
+  const all = (await readdir(demosDir))
     .filter((f) => f.endsWith('.json'))
     .map((f) => f.replace(/\.json$/, ''));
+
+  const wanted = process.argv.slice(2);
+  const unknown = wanted.filter((s) => !all.includes(s));
+  if (unknown.length) {
+    console.error(`Unknown slug(s): ${unknown.join(', ')}\nKnown: ${all.join(', ')}`);
+    process.exit(1);
+  }
+  const slugs = wanted.length ? wanted : all;
 
   const { server, port } = await staticServer(publicDir);
   const browser = await chromium.launch({
