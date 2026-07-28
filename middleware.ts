@@ -67,9 +67,21 @@ export default function middleware(request: Request) {
   if (!prefersMarkdown(accept)) return next();
 
   const url = new URL(request.url);
+  const canonical = url.href;
   const mirror = mirrorFor(url.pathname);
   if (!mirror) return next();
 
   url.pathname = mirror;
-  return rewrite(url);
+
+  // Set these here rather than in vercel.json: Vercel matches `headers` rules
+  // against the ORIGINAL request path, not the rewritten one, so the static
+  // .md rules never apply to a negotiated response — /effects/<slug>.html came
+  // back as text/plain until this was added.
+  return rewrite(url, {
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      Link: `<${canonical}>; rel="canonical"`,
+      Vary: 'Accept',
+    },
+  });
 }
