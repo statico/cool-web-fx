@@ -3,6 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "license": "Unlicense",
   "description": "A gallery of cool web interaction effects that Ian likes — copy-pasteable HTML/CSS/JS, generated with Claude Code.",
   "scripts": {
     "dev": "astro dev",
