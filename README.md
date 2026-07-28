@@ -75,14 +75,10 @@ The index and demo page are generated automatically.
 
 Static output in `dist/` — host anywhere.
 
-- **Vercel:** import the repo; framework preset **Astro**; no config needed.
-- **GitHub Pages:** set `SITE_URL` and `BASE_PATH` for the project path, e.g.
-
-  ```bash
-  SITE_URL=https://<user>.github.io BASE_PATH=/cool-web-fx/ npm run build
-  ```
-
-  then publish `dist/`. (See `astro.config.mjs`.)
+Live at **[fx.statico.io](https://fx.statico.io)**, deployed on Vercel. The
+Vercel Git integration builds every push to `main`; framework preset **Astro**,
+no config needed. Since the site is served from the domain root there is no
+base path to set (see `astro.config.mjs`).
 
 ---
 
