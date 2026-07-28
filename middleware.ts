@@ -28,9 +28,10 @@ function mirrorFor(pathname: string): string | null {
   return null;
 }
 
-/** True when the client asked for markdown *over* html, not merely alongside it.
- *  Browsers send `text/html,...,*/*` — that must not be treated as a request
- *  for Markdown, so an explicit text/markdown must outrank any text/html. */
+// True when the client asked for markdown *over* html, not merely alongside it.
+// Browsers send an Accept of `text/html,...,<star>/<star>` — that must not be
+// treated as a request for Markdown, so an explicit text/markdown has to
+// outrank any text/html by q-value.
 function prefersMarkdown(accept: string): boolean {
   if (!accept) return false;
 
