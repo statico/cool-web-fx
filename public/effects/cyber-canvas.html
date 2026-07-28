@@ -26,7 +26,7 @@
   <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
   <meta name="description" content="A matrix field of monospace glyphs that ripple and rainbow as invisible circular waves wash outward across the header.">
   <link rel="canonical" href="https://fx.statico.io/effects/cyber-canvas.html">
-  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/cyber-canvas.html.md" title="Cyber Ambient Overlay (Markdown)">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/cyber-canvas.md" title="Cyber Ambient Overlay (Markdown)">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="cool web fx">
   <meta property="og:title" content="Cyber Ambient Overlay">
@@ -82,7 +82,7 @@
     <p>Each wave carries three concentric gaussian rings (the crest plus two trailing rings offset by 13·3.2 and 13·6.2 px). For every glyph these rings produce two things: a radial displacement that physically shoves the character outward from the wave centre ((d·1.1 + f·0.78 + p·0.48)·13·0.7·strength), and an intensity that drives brightness. Intensity is modulated by sin(time/950) and a vertical fade clamp(1 − y/(H·1.06), 0.22, 1) so the top of the field stays brightest. Where intensity is high the glyph is recolored in full-saturation rainbow HSL (hsla(hue,100%,78%,…) in dark mode, hue from hueOffset + time·0.045 + g·90), gains a 4 + g·8 px blur shadow, and advances its character index. Glyphs also random-walk: a 10% per-frame chance to step one cell, and a 1.2% chance to teleport.</p>
     <p>Underneath the glyphs, drawGlow() paints faint hsla(hue,46%,60%,~0.06) squares pulsing along the same ring crests, and a dim rgb(108,110,138) grid is stroked at 6% alpha. Each frame begins by filling a translucent rgba(33,33,33,0.18) rectangle (the #212121 dark surface color) which produces the fade-trail rather than clearing the canvas. The loop is throttled to ~24 fps (1000/24 ms gate), the device pixel ratio is clamped to 1, the canvas opacity is 0.72, and a linear-gradient` mask dissolves the field toward the bottom — all matching the captured values. Dark-theme constants are hard-coded here since the standalone has no ChatGPT theme tokens to sample.</p>
     <h2>How to use this file</h2>
-    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/cyber-canvas.html.md">https://fx.statico.io/effects/cyber-canvas.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/cyber-canvas">https://fx.statico.io/demos/cyber-canvas</a>.</p>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/cyber-canvas.md">https://fx.statico.io/effects/cyber-canvas.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/cyber-canvas">https://fx.statico.io/demos/cyber-canvas</a>.</p>
     <h2>Source and credit</h2>
     <p>Effect originally seen on ChatGPT (https://chatgpt.com/cyber) — credit to OpenAI / ChatGPT. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
     <h2>More</h2>

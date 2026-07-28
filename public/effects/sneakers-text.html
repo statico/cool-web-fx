@@ -29,7 +29,7 @@
   <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
   <meta name="description" content="Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.">
   <link rel="canonical" href="https://fx.statico.io/effects/sneakers-text.html">
-  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/sneakers-text.html.md" title="Sneakers Text Decode (Markdown)">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/sneakers-text.md" title="Sneakers Text Decode (Markdown)">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="cool web fx">
   <meta property="og:title" content="Sneakers Text Decode">
@@ -170,7 +170,7 @@
     <p>The reveal algorithm runs in a single requestAnimationFrame loop. On every frame it rebuilds the element's text content character-by-character: if elapsed time s &gt;= index × r + 220 the real character is shown; otherwise the stored glyph is emitted and, if s - lastSwap &gt;= 80, a new random glyph is sampled and the swap timestamp is updated. Spaces bypass the scramble entirely. When s exceeds the total duration, textContent is snapped to the final real string.</p>
     <p>This rebuild is all DOM text (manipulating textContent of &lt;div&gt; and &lt;span&gt; elements) in a monospace font so glyph-width churn does not shift surrounding layout. The demo orchestrates an eyebrow → headline → secondary → eight grid-label cascade with 120 ms inter-label stagger, looping through three content sets drawn from real Infisical copy.</p>
     <h2>How to use this file</h2>
-    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/sneakers-text.html.md">https://fx.statico.io/effects/sneakers-text.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/sneakers-text">https://fx.statico.io/demos/sneakers-text</a>.</p>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/sneakers-text.md">https://fx.statico.io/effects/sneakers-text.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/sneakers-text">https://fx.statico.io/demos/sneakers-text</a>.</p>
     <h2>Source and credit</h2>
     <p>Effect originally seen on Infisical (https://infisical.com/) — credit to Infisical. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
     <h2>More</h2>

@@ -23,8 +23,8 @@ function mirrorFor(pathname: string): string | null {
   if (p === '/') return '/index.md';
   if (p === '/glossary') return '/glossary.md';
   if (/^\/demos\/[^/]+$/.test(p)) return `${p}.md`;
-  // /effects/<slug>.html -> /effects/<slug>.html.md
-  if (/^\/effects\/[^/]+\.html$/.test(p)) return `${p}.md`;
+  // /effects/<slug>.html -> /effects/<slug>.md (extension swapped, not appended)
+  if (/^\/effects\/[^/]+\.html$/.test(p)) return p.replace(/\.html$/, '.md');
   return null;
 }
 

@@ -26,10 +26,10 @@
       ]
     },
     {
-      "source": "/effects/:file.md",
+      "source": "/effects/:slug.md",
       "headers": [
         { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
-        { "key": "Link", "value": "<https://fx.statico.io/effects/:file>; rel=\"canonical\"" }
+        { "key": "Link", "value": "<https://fx.statico.io/effects/:slug.html>; rel=\"canonical\"" }
       ]
     },
     {
