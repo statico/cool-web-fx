@@ -19,7 +19,7 @@
   <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
   <meta name="description" content="Bright electron pulses race along circuit-board Bézier paths between glowing connected nodes.">
   <link rel="canonical" href="https://fx.statico.io/effects/electron-lines.html">
-  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/electron-lines.html.md" title="Electron Pulse Lines (Markdown)">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/electron-lines.md" title="Electron Pulse Lines (Markdown)">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="cool web fx">
   <meta property="og:title" content="Electron Pulse Lines">
@@ -59,7 +59,7 @@
     <p>Sixteen pulses are defined across the twelve paths, some bidirectional. Each has an independent delay (0–3 900 ms) so they are visually desynchronised on load and appear to represent independent data packets. When a pulse wraps past the end of its path it resets to the origin and calls flashNode(), which momentarily brightens the destination node's stroke to #38bdf8 and applies a feGaussianBlur glow filter, then restores it after 380 ms via setTimeout.</p>
     <p>The entire loop runs inside a single requestAnimationFrame callback with no setInterval; frame deltas are capped at 50 ms so a backgrounded tab resumes gracefully rather than jumping. All 16 pulses share one RAF loop, keeping CPU use minimal and preventing timer drift or accumulating closures.</p>
     <h2>How to use this file</h2>
-    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/electron-lines.html.md">https://fx.statico.io/effects/electron-lines.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/electron-lines">https://fx.statico.io/demos/electron-lines</a>.</p>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/electron-lines.md">https://fx.statico.io/effects/electron-lines.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/electron-lines">https://fx.statico.io/demos/electron-lines</a>.</p>
     <h2>Source and credit</h2>
     <p>Effect originally seen on Schematic &amp; Portkey (https://schematichq.com/) — credit to Schematic HQ / Portkey. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
     <h2>More</h2>

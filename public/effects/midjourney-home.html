@@ -29,7 +29,7 @@
   <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
   <meta name="description" content="A wall of real Midjourney prompts swirled into a slow CRT vortex with the wordmark fading up at its eye.">
   <link rel="canonical" href="https://fx.statico.io/effects/midjourney-home.html">
-  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/midjourney-home.html.md" title="Midjourney Prompt Vortex (Markdown)">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/midjourney-home.md" title="Midjourney Prompt Vortex (Markdown)">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="cool web fx">
   <meta property="og:title" content="Midjourney Prompt Vortex">
@@ -64,7 +64,7 @@
     <p>Stage 2 — the CRT shader (WebGL2).** That 2D canvas is uploaded as a texture each frame and drawn through Midjourney's real fragment shader. It applies barrel curvature that eases in over 3000 ms (easeOutQuad), an RGB chroma split of 0.005 * exp(-uTime/750) that decays away over the first second, moving subtractive scanlines (sin((uv.y + uTime*5e-7) * uResolution.y) at 0.4 opacity), a 1 - length(uv-0.5)*0.7 vignette, a 2.5x brightness boost, and an 1 - exp(-c) soft-clip to keep highlights from blowing out. Pixels pushed outside the curved frame are output transparent, letting the page's linear-gradient(0deg, #06051d 30%, #061434) show through the rounded corners.</p>
     <p>Everything is reconstructed from the source: both GLSL shaders, the swirl maths (IA3), the clamp/lerp/ease helpers, the exact colours and timings, and the prompt text itself. It is fully standalone — no CDN, no fonts, no images. The only deviation is a devicePixelRatio cap of 2 for performance; the live site uses the raw ratio.</p>
     <h2>How to use this file</h2>
-    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/midjourney-home.html.md">https://fx.statico.io/effects/midjourney-home.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/midjourney-home">https://fx.statico.io/demos/midjourney-home</a>.</p>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/midjourney-home.md">https://fx.statico.io/effects/midjourney-home.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/midjourney-home">https://fx.statico.io/demos/midjourney-home</a>.</p>
     <h2>Source and credit</h2>
     <p>Effect originally seen on Midjourney (https://www.midjourney.com/home) — credit to Midjourney. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
     <h2>More</h2>

@@ -39,7 +39,7 @@
   <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
   <meta name="description" content="A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.">
   <link rel="canonical" href="https://fx.statico.io/effects/coderabbit-dither.html">
-  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/coderabbit-dither.html.md" title="Vertical-Line Glyph Dither (Markdown)">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/coderabbit-dither.md" title="Vertical-Line Glyph Dither (Markdown)">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="cool web fx">
   <meta property="og:title" content="Vertical-Line Glyph Dither">
@@ -120,7 +120,7 @@
     <p>Two assets can't ship as-is and are reproduced locally. (1) The real silhouette is CodeRabbit's own rabbit artwork, served as an MSDF PNG from their CDN; per this repo's rule (no external images, and don't lift another brand's art) the demo instead extrudes a text glyph whose SDF is built at load with a Felzenszwalb exact distance transform — change the STRING constant to extrude any mark. (2) Their glyph atlas is an external PNG that decodes to an exact rule (360×40, nine 40px cells, each a centered bar of width 4 × index), so it is regenerated procedurally here — a precise match, not an approximation.</p>
     <p>One deliberate change: the live site renders at opacity: 0.10, which is nearly invisible and would not survive a thumbnail; like this repo's meshy-grid demo it is lifted (here to 0.5) so the shape reads standalone. All shader constants are otherwise kept as captured. The mouse-tracking uniforms in the original are all multiplied by 0.0 in the compiled shader, so the real scene is purely time-driven — reproduced faithfully as no interactivity. No CDN, fonts, or images — fully self-contained WebGL2.</p>
     <h2>How to use this file</h2>
-    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/coderabbit-dither.html.md">https://fx.statico.io/effects/coderabbit-dither.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/coderabbit-dither">https://fx.statico.io/demos/coderabbit-dither</a>.</p>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/coderabbit-dither.md">https://fx.statico.io/effects/coderabbit-dither.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/coderabbit-dither">https://fx.statico.io/demos/coderabbit-dither</a>.</p>
     <h2>Source and credit</h2>
     <p>Effect originally seen on CodeRabbit (https://app.coderabbit.ai/login) — credit to CodeRabbit. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
     <h2>More</h2>
