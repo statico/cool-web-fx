@@ -27,17 +27,10 @@
       ]
     },
     {
-      "source": "/effects/:slug.html.md",
+      "source": "/effects/:file.md",
       "headers": [
         { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
-        { "key": "Link", "value": "<https://fx.statico.io/effects/:slug.html>; rel=\"canonical\"" }
-      ]
-    },
-    {
-      "source": "/effects/:slug.md",
-      "headers": [
-        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" },
-        { "key": "Link", "value": "<https://fx.statico.io/effects/:slug.html>; rel=\"canonical\"" }
+        { "key": "Link", "value": "<https://fx.statico.io/effects/:file>; rel=\"canonical\"" }
       ]
     },
     {
