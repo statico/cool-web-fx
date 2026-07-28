@@ -104,4 +104,11 @@ remain the property of their respective creators.
 - Scorecard: 0.2.0
 - Mode: site
 - Last runs:
+  - 2026-07-28 — 100 (scorecard 0.2.0)
   - 2026-07-27 — 41 (scorecard 0.2.0)
+
+Re-run with:
+
+```bash
+npx -y a14y check https://fx.statico.io --mode site
+```
