@@ -80,6 +80,18 @@ Vercel Git integration builds every push to `main`; framework preset **Astro**,
 no config needed. Since the site is served from the domain root there is no
 base path to set (see `astro.config.mjs`).
 
+## License
+
+The code in this repository is released into the public domain under
+[the Unlicense](UNLICENSE) — take it, change it, ship it, no attribution
+needed.
+
+That covers this gallery's own code only. **The original code, designs, and
+techniques belong to their respective creators**, and every site credited above
+retains all rights to its own implementation. The effects here are independent
+recreations offered for **educational use** — to show how something is built —
+and each one names the site that inspired it.
+
 ---
 
 Generated with [Claude Code](https://claude.com/claude-code).
