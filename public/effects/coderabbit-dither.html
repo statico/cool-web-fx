@@ -36,6 +36,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vertical-Line Glyph Dither</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.">
+  <link rel="canonical" href="https://fx.statico.io/effects/coderabbit-dither.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/coderabbit-dither.html.md" title="Vertical-Line Glyph Dither (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Vertical-Line Glyph Dither">
+  <meta property="og:description" content="A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.">
+  <meta property="og:url" content="https://fx.statico.io/effects/coderabbit-dither.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Vertical-Line Glyph Dither">
+  <meta name="twitter:description" content="A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/coderabbit-dither.html#effect","name":"Vertical-Line Glyph Dither","url":"https://fx.statico.io/effects/coderabbit-dither.html","abstract":"A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.","description":"A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://app.coderabbit.ai/login","mainEntityOfPage":"https://fx.statico.io/demos/coderabbit-dither","dateModified":"2026-07-17T20:52:10-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/coderabbit-dither.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Vertical-Line Glyph Dither","item":"https://fx.statico.io/demos/coderabbit-dither"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/coderabbit-dither.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -95,6 +110,23 @@
   </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Vertical-Line Glyph Dither</h1>
+    <p>A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front.</p>
+    <h2>How it works</h2>
+    <p>This is the background behind the headline on CodeRabbit's login page. On the real site it is a Unicorn Studio WebGL scene (embed ruJTLONEQl9GIDv2uNaZ, loaded from assets.unicorn.studio) rendered at opacity: 0.10. Its scene JSON is readable, so this is a faithful port of the pipeline, not a guess at the look.</p>
+    <p>The scene is three layers. A flat cut-out silhouette is read as a signed distance field; that SDF is extruded into a slab (opExtrusion, half-thickness 0.17 × 0.5 = 0.085) and raymarched while it slowly tumbles — using the captured base orientation vec3(0.6876, 0.4381, 0.1917), object scale 0.396, and a time spin at the layer's speed: 0.44. The lit render is then pixelated onto a grid (cell size mix(0.05, 0.005, 0.678) ≈ 0.0195, sample offset (0.5225, 0.5120)) and each cell's luminance — pushed through gamma pow(3.0, 2.2) ≈ 11.21 — selects a sprite from a "vertical_lines" glyph strip, painted flat #E4E4E7. That bar-dither is the whole look: brighter cells get wider bars.</p>
+    <p>Two assets can't ship as-is and are reproduced locally. (1) The real silhouette is CodeRabbit's own rabbit artwork, served as an MSDF PNG from their CDN; per this repo's rule (no external images, and don't lift another brand's art) the demo instead extrudes a text glyph whose SDF is built at load with a Felzenszwalb exact distance transform — change the STRING constant to extrude any mark. (2) Their glyph atlas is an external PNG that decodes to an exact rule (360×40, nine 40px cells, each a centered bar of width 4 × index), so it is regenerated procedurally here — a precise match, not an approximation.</p>
+    <p>One deliberate change: the live site renders at opacity: 0.10, which is nearly invisible and would not survive a thumbnail; like this repo's meshy-grid demo it is lifted (here to 0.5) so the shape reads standalone. All shader constants are otherwise kept as captured. The mouse-tracking uniforms in the original are all multiplied by 0.0 in the compiled shader, so the real scene is purely time-driven — reproduced faithfully as no interactivity. No CDN, fonts, or images — fully self-contained WebGL2.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/coderabbit-dither.html.md">https://fx.statico.io/effects/coderabbit-dither.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/coderabbit-dither">https://fx.statico.io/demos/coderabbit-dither</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on CodeRabbit (https://app.coderabbit.ai/login) — credit to CodeRabbit. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <canvas id="scene" aria-label="Slowly tumbling extruded glyph, rendered as vertical-line ASCII dither" role="img"></canvas>
 
   <div class="copy">

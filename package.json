@@ -7,9 +7,11 @@
   "description": "A gallery of cool web interaction effects that Ian likes — copy-pasteable HTML/CSS/JS, generated with Claude Code.",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "npm run agent-docs && astro build && node scripts/generate-agent-files.mjs",
     "preview": "astro preview",
-    "thumbs": "node scripts/take-screenshots.mjs"
+    "thumbs": "node scripts/take-screenshots.mjs",
+    "agent-docs": "node scripts/sync-agent-docs.mjs && node scripts/inject-effect-metadata.mjs",
+    "agent-docs:check": "node scripts/sync-agent-docs.mjs --check && node scripts/inject-effect-metadata.mjs --check"
   },
   "devDependencies": {
     "astro": "^4.16.0",

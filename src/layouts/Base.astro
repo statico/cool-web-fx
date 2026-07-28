@@ -1,10 +1,21 @@
 ---
 import '../styles/site.css';
-const { title } = Astro.props;
+import { canonicalUrl, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '../lib/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Path to this page's markdown mirror, e.g. "/demos/resend-cube.md". */
+  mdPath?: string;
+  /** JSON-LD graph nodes to emit for this page. */
+  jsonLd?: unknown[];
+}
+
+const { title, description, mdPath, jsonLd = [] } = Astro.props as Props;
 const base = import.meta.env.BASE_URL; // respects astro.config base
-const pageTitle = title
-  ? `${title} — cool web fx`
-  : 'Cool web interaction effects that Ian likes';
+const pageTitle = title ? `${title} — ${SITE_NAME}` : SITE_TAGLINE;
+const pageDescription = description || SITE_DESCRIPTION;
+const canonical = canonicalUrl(Astro.url.pathname);
 const CC_URL = 'https://claude.com/claude-code';
 const REPO_URL = 'https://github.com/statico/cool-web-fx';
 ---
@@ -14,11 +25,33 @@ const REPO_URL = 'https://github.com/statico/cool-web-fx';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
-    <meta
-      name="description"
-      content="A gallery of cool web interaction effects, recreated as copy-pasteable HTML/CSS/JS. Generated with Claude Code. Inspired by reactbits.dev."
-    />
+    <meta name="description" content={pageDescription} />
+    <link rel="canonical" href={canonical} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+
+    {/* Markdown mirror of this page, for agents that prefer plain text. The
+        same file is served for `Accept: text/markdown` — see vercel.json. */}
+    {mdPath && (
+      <link rel="alternate" type="text/markdown" href={canonicalUrl(mdPath)} title={`${pageTitle} (Markdown)`} />
+    )}
+
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+
+    {jsonLd.length > 0 && (
+      <script
+        type="application/ld+json"
+        is:inline
+        set:html={JSON.stringify({ '@context': 'https://schema.org', '@graph': jsonLd })}
+      />
+    )}
   </head>
   <body>
     <header class="site-header">
@@ -46,6 +79,8 @@ const REPO_URL = 'https://github.com/statico/cool-web-fx';
           copyright their respective creators.
         </span>
         <span>
+          <a href={`${base}glossary`}>glossary</a> ·
+          <a href={`${base}AGENTS.md`}>AGENTS.md</a> ·
           <a href={`${base}skill.md`}>skill.md</a> ·
           <a href={`${base}llms.txt`}>llms.txt</a> ·
           <a href={REPO_URL} target="_blank" rel="noopener">source</a>

@@ -26,6 +26,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sneakers Text Decode</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.">
+  <link rel="canonical" href="https://fx.statico.io/effects/sneakers-text.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/sneakers-text.html.md" title="Sneakers Text Decode (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Sneakers Text Decode">
+  <meta property="og:description" content="Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.">
+  <meta property="og:url" content="https://fx.statico.io/effects/sneakers-text.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Sneakers Text Decode">
+  <meta name="twitter:description" content="Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/sneakers-text.html#effect","name":"Sneakers Text Decode","url":"https://fx.statico.io/effects/sneakers-text.html","abstract":"Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.","description":"Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://infisical.com/","mainEntityOfPage":"https://fx.statico.io/demos/sneakers-text","dateModified":"2026-07-17T20:52:02-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/sneakers-text.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Sneakers Text Decode","item":"https://fx.statico.io/demos/sneakers-text"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/sneakers-text.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -145,6 +160,23 @@
   </style>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Sneakers Text Decode</h1>
+    <p>Characters scramble through random glyphs then snap left-to-right into readable text — like a cipher decode from the movie Sneakers.</p>
+    <h2>How it works</h2>
+    <p>Extracted from Infisical's React component in module 49899 of pages/index-4fc63f88002b15b5.js (HAR: https://infisical.com/_next/static/chunks/pages/index-4fc63f88002b15b5.js). The component is registered as s.A on the index page and applied to section-break labels (font-v2-mono uppercase), button text (cipher:true, cipherOnMount:true), and product-tab headings.</p>
+    <p>The character pool is exactly 76 chars: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&amp;*?/&lt;&gt;+=-. The timing parameters (all extracted verbatim) are: stagger = 70 ms, revealPerChar = 220 ms (the initial hold before char 0 resolves), glyphInterval = 80 ms (how often each pending glyph swaps), and maxDuration = 1500 ms (a cap that compresses stagger for long strings via r = (1500 - 220 - 200) / len). An IntersectionObserver with threshold: 0.4 triggers the animation once the element enters the viewport.</p>
+    <p>The reveal algorithm runs in a single requestAnimationFrame loop. On every frame it rebuilds the element's text content character-by-character: if elapsed time s &gt;= index × r + 220 the real character is shown; otherwise the stored glyph is emitted and, if s - lastSwap &gt;= 80, a new random glyph is sampled and the swap timestamp is updated. Spaces bypass the scramble entirely. When s exceeds the total duration, textContent is snapped to the final real string.</p>
+    <p>This rebuild is all DOM text (manipulating textContent of &lt;div&gt; and &lt;span&gt; elements) in a monospace font so glyph-width churn does not shift surrounding layout. The demo orchestrates an eyebrow → headline → secondary → eight grid-label cascade with 120 ms inter-label stagger, looping through three content sets drawn from real Infisical copy.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/sneakers-text.html.md">https://fx.statico.io/effects/sneakers-text.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/sneakers-text">https://fx.statico.io/demos/sneakers-text</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Infisical (https://infisical.com/) — credit to Infisical. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <div class="panel">
     <div class="eyebrow"   id="eyebrow"></div>
     <div class="headline"  id="headline"></div>

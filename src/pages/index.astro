@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import { canonicalUrl, newestModified, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '../lib/site';
 
 const base = import.meta.env.BASE_URL;
 
@@ -9,8 +10,46 @@ const metaModules = import.meta.glob('../demos/*.json', { eager: true });
 const demos = Object.values(metaModules)
   .map((m) => (m as any).default)
   .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+
+const dateModified = newestModified(demos.map((d) => `src/demos/${d.slug}.json`));
+
+const jsonLd = [
+  {
+    '@type': 'WebSite',
+    '@id': `${canonicalUrl('/')}#website`,
+    name: SITE_NAME,
+    alternateName: SITE_TAGLINE,
+    url: canonicalUrl('/'),
+    description: SITE_DESCRIPTION,
+    inLanguage: 'en',
+  },
+  {
+    '@type': 'CollectionPage',
+    '@id': `${canonicalUrl('/')}#page`,
+    name: SITE_TAGLINE,
+    url: canonicalUrl('/'),
+    description: SITE_DESCRIPTION,
+    isPartOf: { '@id': `${canonicalUrl('/')}#website` },
+    inLanguage: 'en',
+    dateModified,
+    hasPart: demos.map((d) => ({
+      '@type': 'SoftwareSourceCode',
+      name: d.title,
+      url: canonicalUrl(`/demos/${d.slug}`),
+      abstract: d.blurb,
+      programmingLanguage: 'HTML',
+    })),
+  },
+  {
+    '@type': 'BreadcrumbList',
+    '@id': `${canonicalUrl('/')}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: canonicalUrl('/') },
+    ],
+  },
+];
 ---
-<Base>
+<Base mdPath="/index.md" jsonLd={jsonLd}>
   <section class="intro">
     <p class="lede">
       A growing gallery of web interaction effects I think are cool — each one
@@ -24,6 +63,33 @@ const demos = Object.values(metaModules)
     </p>
   </section>
 
+  <section class="intro">
+    <h2>How to use an effect</h2>
+    <p>
+      Open any effect below, hit <strong>Copy code</strong>, and paste the whole
+      file into your own project — it is a complete HTML document with the CSS and
+      JavaScript inline. Nothing here needs a bundler, a package install, or an API
+      key. Only <code>resend-cube</code> loads an external library (Three.js, pinned
+      via an import map); every other effect makes no network calls at all.
+    </p>
+  </section>
+
+  <section class="intro">
+    <h2>For coding agents</h2>
+    <p>
+      If you are an LLM or coding agent, start with
+      <a href={`${base}skill.md`}>skill.md</a> or
+      <a href={`${base}AGENTS.md`}>AGENTS.md</a> — they explain how to grab an
+      effect and what attribution to keep. Machine-readable indexes live at
+      <a href={`${base}llms.txt`}>llms.txt</a>,
+      <a href={`${base}sitemap.md`}>sitemap.md</a> and
+      <a href={`${base}sitemap.xml`}>sitemap.xml</a>, and every page has a Markdown
+      mirror at the same path with a <code>.md</code> suffix. Unfamiliar terms are
+      defined in the <a href={`${base}glossary`}>glossary</a>.
+    </p>
+  </section>
+
+  <h2 class="gallery-heading">All effects</h2>
   <div class="gallery">
     {demos.map((d) => (
       <a class="card" href={`${base}demos/${d.slug}`}>

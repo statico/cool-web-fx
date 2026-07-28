@@ -19,6 +19,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Black Rubik's Cube</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light.">
+  <link rel="canonical" href="https://fx.statico.io/effects/resend-cube.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/resend-cube.html.md" title="Black Rubik's Cube (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Black Rubik's Cube">
+  <meta property="og:description" content="An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light.">
+  <meta property="og:url" content="https://fx.statico.io/effects/resend-cube.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Black Rubik's Cube">
+  <meta name="twitter:description" content="An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/resend-cube.html#effect","name":"Black Rubik's Cube","url":"https://fx.statico.io/effects/resend-cube.html","abstract":"An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light.","description":"An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://resend.com/home","mainEntityOfPage":"https://fx.statico.io/demos/resend-cube","dateModified":"2026-07-17T20:52:02-07:00","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/resend-cube.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Black Rubik's Cube","item":"https://fx.statico.io/demos/resend-cube"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/resend-cube.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
@@ -35,6 +50,23 @@
   </script>
 </head>
 <body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Black Rubik's Cube</h1>
+    <p>An all-black Rubik's cube with mixed matte/glossy finishes, slowly turning under studio light.</p>
+    <h2>How it works</h2>
+    <p>Resend's hero cube is shipped as a Spline scene — a binary cube.splinecode asset (~2.8 MB) rendered by Spline's WebGL runtime, with a cube.mp4 fallback video. There is no readable source to lift, so this is a faithful recreation in plain Three.js of the same object: an all-black 3×3 cube with mixed material finishes on a black background.</p>
+    <p>The cube is 27 cubies, each a RoundedBoxGeometry(0.96, 0.96, 0.96, 4, 0.1) so the corners catch a soft highlight. Every cubie draws from a pool of five MeshStandardMaterials that all share the same near-black base color (#0a0a0b) but differ only in roughness/metalness — glossy (0.18 / 1.0), satin, soft, matte, and a perforated finish whose roughnessMap is a CanvasTexture of a dot grid. The finishes are assigned with a seeded PRNG so the layout is stable across loads and weighted toward glossy, matching the real render.</p>
+    <p>Because a black metallic surface has nothing to shade without reflections, the scene's environment is a procedural RoomEnvironment baked through a PMREMGenerator — that studio map is what the glossy stickers reflect. A bright DirectionalLight key rakes a highlight across the top faces, a dim blue rim separates the cube from the black background, and ACESFilmicToneMapping keeps the highlights from clipping.</p>
+    <p>The cube sits at a fixed rotation.x tilt so three faces stay visible, and setAnimationLoop advances rotation.y by a small constant each frame for a slow, steady turn. Three.js is the one external dependency, pinned and loaded as an ES module from a CDN via an importmap.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/resend-cube.html.md">https://fx.statico.io/effects/resend-cube.html.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/resend-cube">https://fx.statico.io/demos/resend-cube</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Resend (https://resend.com/home) — credit to Resend. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
   <script type="module">
     import * as THREE from 'three';
     import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
