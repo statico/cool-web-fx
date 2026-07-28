@@ -319,8 +319,7 @@ function sitemapMd() {
     ...demos.map(
       (d) =>
         `- [${d.title}](${url(`/effects/${d.slug}.html`)}) — \`${d.slug}.html\`. ` +
-        `Markdown: [/effects/${d.slug}.md](${url(`/effects/${d.slug}.md`)}) ` +
-        `(also [/effects/${d.slug}.html.md](${url(`/effects/${d.slug}.html.md`)}))`,
+        `Markdown: [/effects/${d.slug}.html.md](${url(`/effects/${d.slug}.html.md`)})`,
     ),
     '',
     '## Agent resources',
@@ -346,11 +345,11 @@ const written = [
   write('index.md', indexMirror()),
   write('glossary.md', glossaryMirror()),
   ...demos.map((d) => write(`demos/${d.slug}.md`, demoMirror(d))),
-  // Both spellings: consumers append ".md" to the URL, or swap the extension.
-  ...demos.flatMap((d) => {
-    const body = effectMirror(d);
-    return [write(`effects/${d.slug}.md`, body), write(`effects/${d.slug}.html.md`, body)];
-  }),
+  // One spelling only: <url>.md, i.e. effects/<slug>.html.md. Also emitting
+  // effects/<slug>.md made the canonical Link rule in vercel.json ambiguous —
+  // a single `:file.md` pattern cannot map both spellings back to the same
+  // .html URL, and the greedy match produced `<...resend-cube.html.html>`.
+  ...demos.map((d) => write(`effects/${d.slug}.html.md`, effectMirror(d))),
 ];
 
 console.log(`generate-agent-files: wrote ${written.length} files to dist/`);
