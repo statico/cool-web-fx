@@ -1,0 +1,657 @@
+<!doctype html>
+<!--
+  Warped Text Wall  (nell.ai homepage background)
+  ─────────────────────────────────────────────────────────────────────────────
+  The full-bleed red field on https://nell.ai/ is a wall of prose resampled
+  through a noise flow field. Their React component is named NellShaderCanvas,
+  but it is not WebGL at all — it is a plain 2D canvas driven by batched
+  fillText. This is a port of that pipeline, read out of their shipped chunk
+  (_next/static/chunks/8147-*.js), not a guess at the look.
+
+  How it works:
+
+    1. A long passage is split into words. Every word position that is *not*
+       just after sentence-ending punctuation becomes a possible entry point —
+       so columns start mid-thought, never at a tidy sentence head.
+    2. The text is laid out into narrow vertical columns on a wide strip:
+       294.21875px pitch, 283.828125px wide, 28 columns per 8238.125px block.
+       Column n starts at entry point (37n + 19) % count, is repeated 4x so it
+       never runs dry, and is greedy-wrapped to floor(283.828125 / charWidth).
+    3. The canvas is walked as a character grid (10px mono, 13px lines). For
+       each cell, a 3D value-noise field gives a displacement, and the glyph is
+       sampled from the *displaced* position rather than the cell's own. That
+       resampling is the entire effect — the prose smears into liquid.
+    4. The displacement is scaled by the squared normalized Y, anchored at the
+       top. So the top rows stay crisp and legible and the smear grows
+       quadratically toward the bottom.
+    5. Time is the noise's third dimension (0.1t) plus a -0.08t vertical drift,
+       so the field flows instead of jittering.
+
+  Runs of consecutive same-color characters are accumulated into a single
+  fillText call rather than one call per glyph — their key perf trick, kept.
+
+  The call to action is stamped into the row nearest the viewport center. Those
+  cells always render the CTA character; only the *color* animates, each letter
+  flipping to white on a hash-shuffled schedule over 3.2s.
+
+  Drag, scroll, or use the arrow keys to move through the strip.
+
+  Two deliberate changes from the original:
+    • The prose is original text written for this gallery, not Nell's own
+      company text — the effect is the layout-and-warp pipeline, not their
+      marketing copy. Swap the PROSE constant for any long text.
+    • The CTA reads "DRAG TO EXPLORE" instead of "JOIN THE WAITLIST", which
+      doubles as a usage hint.
+    • The wheel handler stands down when this file is in an iframe. The
+      original calls preventDefault unconditionally, which is free on a page
+      that never scrolls but would trap a host page's scroll here.
+  Every geometry, noise, warp, reveal, easing and clamp constant is kept
+  exactly as captured.
+
+  Fully self-contained: no external scripts, fonts, or images.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warped Text Wall</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      /* Captured from the live site's CSS custom properties. */
+      --paper: hsl(0 100% 18.2%);
+      --ink:   hsl(351.4 100% 65.7%);
+      --cta:   hsl(0 0% 100%);
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                   "Liberation Mono", "Courier New", monospace;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--paper);
+    }
+
+    body { cursor: grab; }
+    /* Set on <html> while a drag is in flight, as the original does. */
+    html.dragging, html.dragging body { cursor: grabbing; }
+
+    #wall {
+      position: fixed;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Shown only if the 2D context is unavailable, so the page is never a
+       blank red rectangle. */
+    #fallback {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-content: center;
+      padding: 2rem;
+      color: var(--ink);
+      font: 14px/1.6 var(--font-mono);
+      text-align: center;
+    }
+    #fallback.show { display: grid; }
+  </style>
+</head>
+<body>
+  <canvas id="wall" aria-hidden="true"></canvas>
+  <div id="fallback">This effect needs a 2D canvas context.</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── Tunables ───────────────────────────────────────────────────────────────
+  const CTA = 'DRAG TO EXPLORE';
+
+  // Geometry, captured from the original.
+  const COLUMN_PITCH     = 294.21875;
+  const COLUMN_WIDTH     = 283.828125;
+  const COLUMN_PAD       = 10.390625;
+  const COLUMNS_PER_BLOCK = 28;
+  const BLOCK_WIDTH      = 8238.125;   // === COLUMN_PITCH * COLUMNS_PER_BLOCK
+  const FONT_SIZE        = 10;
+  const LINE_HEIGHT      = 13;
+
+  // Warp, easing, reveal.
+  const WARP_X          = 620;
+  const WARP_Y          = 780;
+  const EASE            = 0.16;
+  const REVEAL_SECONDS  = 3.2;
+  const MOBILE_FRAME_MS = 1000 / 24;
+  const MOBILE_DPR_CAP  = 1.5;
+
+  // ── The text ───────────────────────────────────────────────────────────────
+  // Placeholder lorem ipsum. Swap it for anything long; the layout adapts.
+  // It only wants many sentence boundaries to pick entry points from.
+  const PROSE = `
+  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Eaque soluta porro
+  quaerat, at distinctio labore eligendi eu ut. Adipiscing asperiores cumque
+  nihil cillum debitis rem accusantium ad elit ipsum quis similique lorem
+  praesentium expedita. Dolor nam sequi deserunt consequuntur excepturi rem.
+  Minus id sapiente minus at porro irure nulla? Doloremque culpa excepturi
+  nobis quaerat aut eiusmod, voluptas veniam libero proident provident. Harum
+  autem fugit nam doloremque autem nam consequat labore dolor qui et minus
+  eligendi natus cupidatat mollitia? Incididunt modi non quidem irure do natus
+  quos similique minim magna occaecat pariatur. Cumque dignissimos pariatur
+  lorem, voluptatum enim aute culpa placeat beatae doloribus proident aliqua
+  minim dolorum! Alias non porro iusto eius aliqua excepturi culpa omnis
+  repudiandae. Dicta cupidatat ullamco hic explicabo dolor alias dicta
+  blanditiis. Temporibus itaque anim rerum cillum repellendus magna voluptatum
+  quia aspernatur dolorum, magna perferendis est. Aliquip at dolorem debitis
+  distinctio commodo dolorem doloremque. Reiciendis voluptatum quo facilis
+  consequuntur officiis magnam voluptatum in libero molestias culpa natus. Sit
+  at asperiores ullamco minus amet, duis explicabo pariatur molestias modi.
+  Modi anim odio repudiandae sit delectus anim at dolor ratione non tempor ea
+  irure id enim id. Amet illo eligendi quae excepteur occaecat anim et. Sed ex
+  nisi aliqua error cum beatae. Irure cupidatat doloribus temporibus ratione
+  maxime asperiores aute enim dignissimos, inventore ad cillum sit accusantium
+  quia dolor. Deleniti proident in facilis mollitia tempor eligendi. Nisi
+  totam in cupidatat nulla natus officia. At odio voluptate similique
+  blanditiis dignissimos rem est. Nostrud ipsum repudiandae debitis, magna non
+  minus ipsum animi assumenda sint minim beatae dolores. Ad reiciendis dolorum
+  corrupti recusandae ipsum eu explicabo ducimus rerum facere. Eiusmod
+  voluptatem occaecat nesciunt modi ratione provident quis qui hic autem
+  assumenda soluta vitae. Ea doloribus maxime enim asperiores fuga voluptatem?
+  Eu reiciendis impedit incidunt ipsum deserunt dicta sunt asperiores. Ipsa
+  hic quas quisquam dolore dolor eaque natus. Repudiandae eos culpa aliqua
+  autem incidunt hic. Consequuntur facere molestias pariatur vitae doloremque
+  minim eligendi possimus numquam incidunt. Recusandae qui possimus aliquam
+  eos optio aliquam soluta excepteur ex placeat aute, reprehenderit laboris
+  libero excepturi. Magnam soluta possimus cum praesentium, voluptatum aperiam
+  enim laudantium veritatis error. Aliquip maiores sunt dicta quo neque eaque.
+  Modi eiusmod quos voluptate numquam aspernatur aliquam explicabo
+  consequuntur atque tempore. Facilis vitae ab occaecati voluptate corrupti
+  animi magna mollitia, culpa mollit labore? Est ea qui vitae mollit sed
+  sapiente explicabo, eu ipsum vitae. Saepe do iusto perferendis at ullamco
+  deserunt laborum maxime commodo itaque delectus vitae mollitia consectetur
+  omnis. Minus fugiat magni nulla eu porro voluptates vero nihil numquam fuga
+  quas laborum autem id recusandae tenetur. Quis ipsum itaque facilis aut
+  incidunt aspernatur veritatis accusamus nesciunt reiciendis quae adipisci
+  necessitatibus excepteur asperiores ipsa. Excepteur repellendus voluptate
+  duis repellendus beatae laborum consequat aperiam ratione natus exercitation
+  necessitatibus non qui dolor culpa. Nihil magni nesciunt beatae incididunt
+  ad ullamco maiores, cumque incididunt deleniti enim provident dolores esse.
+  Ratione similique exercitation repellat similique vitae aliquip nobis lorem.
+  Tenetur error explicabo autem, occaecati temporibus blanditiis eligendi
+  reprehenderit aut nam in tempore doloremque iusto! Dolores aut facilis alias
+  repudiandae optio officia neque expedita fuga, eu quisquam eius ab. Duis
+  inventore accusamus quisquam quibusdam, at voluptas cum animi id inventore
+  tempore debitis dolor. Magni voluptates culpa impedit necessitatibus esse
+  laudantium deserunt. Sequi itaque ut eu magna et voluptas tenetur.
+  Repudiandae earum ipsa alias cillum voluptates consectetur laborum, adipisci
+  amet dolor modi cupidatat sequi porro. Inventore debitis culpa ipsum, modi
+  ipsum maiores praesentium dolorem laudantium. Qui voluptas vitae
+  consequuntur elit mollitia adipisci. Fuga rerum at soluta inventore vero
+  repellendus fugit. Iusto doloribus culpa quas reiciendis natus optio
+  commodo? Quis repudiandae consequuntur incididunt voluptates accusantium
+  ipsum sint quaerat perferendis voluptatum voluptate minus nam dolor. Tempore
+  blanditiis sequi nesciunt occaecati incididunt labore deserunt, facilis
+  autem illo. Aute recusandae omnis sunt dolores ratione quisquam? Odio quia
+  aut voluptates accusamus alias omnis earum distinctio excepteur
+  necessitatibus. Quos aspernatur placeat ex assumenda ad earum quia! Magna
+  eligendi rerum eveniet sapiente dolorum eu numquam. Porro irure aperiam
+  aliqua enim amet et repellendus sequi, aute ratione accusantium excepturi.
+  Irure fugit lorem at dolor distinctio perferendis, neque eaque laborum sit
+  natus deserunt eaque illo quae velit. Eos dolorum totam aliqua porro, mollit
+  aut quas quisquam provident amet consequuntur impedit eaque magni. Possimus
+  magna voluptatum temporibus eligendi sed ex voluptates id rem ullamco. Amet
+  assumenda rerum quidem inventore elit tempore elit eaque rem. Maiores quo
+  veritatis debitis optio reprehenderit nesciunt doloremque. Cumque quisquam
+  similique occaecati debitis accusantium, laborum maxime repellat. Tempor
+  corrupti in excepteur ex debitis totam dolorum velit. Occaecat harum alias
+  quisquam incididunt deserunt nihil repudiandae proident culpa at hic ipsum.
+  Occaecati eius dicta dignissimos sequi aliqua debitis ducimus reprehenderit
+  occaecati, reprehenderit veritatis fugiat accusantium tempore. Deserunt
+  harum nostrud occaecat neque tempor praesentium sequi neque cumque
+  blanditiis enim optio. Quas cupidatat fugiat error ducimus in debitis!
+  Impedit similique dolorem exercitation aut at officia quas totam. Deleniti
+  ad ea sit atque voluptatum quis quaerat quidem quos. Aute placeat enim
+  voluptas eos magna sit vero quis, lorem consequuntur voluptatem aut
+  praesentium nostrud. Adipisci consequat dolor eu laudantium tempore
+  cupidatat culpa quos non saepe. Dolor aliqua tempore dolor, quisquam ipsum
+  deserunt nobis qui quisquam optio placeat aspernatur repudiandae quibusdam
+  quas.
+`;
+
+  const WORDS = PROSE.replace(/\s+/g, ' ').trim().split(' ');
+
+  // Word positions that are NOT immediately after sentence-ending punctuation,
+  // i.e. mid-sentence entry points. Columns start here so the wall reads as an
+  // endless middle rather than a grid of openings.
+  const ENTRY_POINTS = [];
+  for (let i = 9; i < WORDS.length - 8; i += 1) {
+    const prev = WORDS[i - 1] ?? '';
+    if (!/[.!?]["'’”)\]]*$/.test(prev)) ENTRY_POINTS.push(i);
+  }
+
+  // ── Value noise ────────────────────────────────────────────────────────────
+  function hash3(x, y, z) {
+    const n = Math.sin(127.1 * x + 311.7 * y + 74.7 * z) * 43758.5453123;
+    return (n - Math.floor(n)) * 2 - 1;
+  }
+
+  const smoothstep = (t) => t * t * (3 - 2 * t);
+  const mix = (a, b, t) => a + (b - a) * t;
+
+  function noise3(x, y, z) {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const fx = smoothstep(x - xi), fy = smoothstep(y - yi), fz = smoothstep(z - zi);
+
+    const y0z0 = mix(hash3(xi, yi,     zi),     hash3(xi + 1, yi,     zi),     fx);
+    const y1z0 = mix(hash3(xi, yi + 1, zi),     hash3(xi + 1, yi + 1, zi),     fx);
+    const y0z1 = mix(hash3(xi, yi,     zi + 1), hash3(xi + 1, yi,     zi + 1), fx);
+    const y1z1 = mix(hash3(xi, yi + 1, zi + 1), hash3(xi + 1, yi + 1, zi + 1), fx);
+
+    return mix(mix(y0z0, y1z0, fy), mix(y0z1, y1z1, fy), fz);
+  }
+
+  // ── Text layout ────────────────────────────────────────────────────────────
+  const textCache    = new Map();
+  const wrapCache    = new Map();
+  const metricsCache = new Map();
+  const blockCache   = new Map();
+
+  function columnText(index) {
+    const hit = textCache.get(index);
+    if (hit) return hit;
+    const start = ENTRY_POINTS[(37 * index + 19) % ENTRY_POINTS.length] || 0;
+    const rotated = [...WORDS.slice(start), ...WORDS.slice(0, start)].join(' ');
+    textCache.set(index, rotated);
+    return rotated;
+  }
+
+  function wrapColumn(index, maxChars) {
+    const key = index + ':' + maxChars;
+    const hit = wrapCache.get(key);
+    if (hit) return hit;
+
+    // Repeated 4x so a tall viewport can never run past the end.
+    const base = columnText(index);
+    let text = base;
+    for (let r = 1; r < 4; r += 1) text += ' ' + base;
+
+    const lines = [];
+    let line = '';
+    for (const word of text.split(' ')) {
+      const next = line ? line + ' ' + word : word;
+      if (next.length > maxChars && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    }
+    if (line) lines.push(line);
+
+    wrapCache.set(key, lines);
+    return lines;
+  }
+
+  function metricsFor(ctx, fontFamily) {
+    const font = FONT_SIZE + 'px ' + fontFamily;
+    ctx.font = font;
+    const hit = metricsCache.get(font);
+    if (hit) return hit;
+
+    // Averaged over 20 glyphs so sub-pixel advance widths don't accumulate.
+    const probe = 'M'.repeat(20);
+    const charWidth = Math.max(1, ctx.measureText(probe).width / 20);
+    const metrics = { font, charWidth, lineHeight: LINE_HEIGHT };
+    metricsCache.set(font, metrics);
+    return metrics;
+  }
+
+  // Column *content* repeats every 28; only the positions keep advancing.
+  function buildColumns(offset, viewportWidth, metrics) {
+    const blocks = Math.max(
+      2,
+      Math.ceil((viewportWidth + Math.abs(offset) + BLOCK_WIDTH) / BLOCK_WIDTH)
+    );
+    const key = blocks + ':' + metrics.charWidth.toFixed(2);
+    const hit = blockCache.get(key);
+    if (hit) return hit;
+
+    const maxChars = Math.max(1, Math.floor(COLUMN_WIDTH / metrics.charWidth));
+    const columns = [];
+    for (let b = 0; b < blocks; b += 1) {
+      for (let i = 0; i < COLUMNS_PER_BLOCK; i += 1) {
+        columns.push({
+          anchor: 0,
+          left: COLUMN_PITCH * columns.length + COLUMN_PAD,
+          width: COLUMN_WIDTH,
+          lines: wrapColumn(i, maxChars),
+        });
+      }
+    }
+
+    blockCache.set(key, columns);
+    return columns;
+  }
+
+  function columnAt(columns, x) {
+    const column = columns[Math.floor(x / COLUMN_PITCH)];
+    return column && x >= column.left && x < column.left + column.width
+      ? column
+      : undefined;
+  }
+
+  // ── The warp ───────────────────────────────────────────────────────────────
+  function warp(x, y, time, width, height, metrics, anchor) {
+    const span = Math.max(width, height);
+
+    // Squared falloff from the anchor row (always the top here), so the crisp
+    // band sits up top and the smear grows toward the bottom.
+    const normY = Math.max(0, Math.min(1, y / Math.max(height - metrics.lineHeight, 1)));
+    const falloff =
+      (Math.abs(normY - anchor) / Math.max(anchor, 1 - anchor, 0.001)) ** 2;
+
+    const swirl = 1.2 + 2.9 * Math.abs(
+      noise3((x / span) * 3, (y / span) * 3 - 0.1 * time, 0.03 * time)
+    );
+
+    const nx = (x / span - 0.5) * swirl * 2;
+    const ny = (y / span - 0.5) * swirl - 0.08 * time;
+    const nz = 0.1 * time;
+
+    return [
+      WARP_X * noise3(nx + 31.7, ny, nz) * falloff,
+      WARP_Y * noise3(nx, ny + 47.3, nz) * falloff,
+    ];
+  }
+
+  // Sample a glyph from the laid-out strip at an arbitrary (displaced) point.
+  function charAt(columns, x, y, metrics) {
+    if (y < 0) return ' ';
+    const column = columnAt(columns, x);
+    if (!column) return ' ';
+
+    const line = column.lines[Math.floor(y / metrics.lineHeight)];
+    if (!line) return ' ';
+
+    // Nudge values that land a hair under an integer boundary up to it, so
+    // glyphs don't shear along column edges.
+    const raw = (x - column.left) / metrics.charWidth;
+    const floored = Math.floor(raw);
+    const index = Math.abs(raw - floored - 1) < 1e-6 ? Math.ceil(raw) : floored;
+
+    return line[index] || ' ';
+  }
+
+  // ── Call to action ─────────────────────────────────────────────────────────
+  function ctaHash(i) {
+    const t = Math.sin((i + 1) * 92821.731) * 1e4;
+    return t - Math.floor(t);
+  }
+
+  // Reveal order is a hash shuffle of the non-space character indices.
+  const CTA_ORDER = Array.from(CTA, (_, i) => i)
+    .filter((i) => CTA[i] !== ' ')
+    .sort((a, b) => ctaHash(a) - ctaHash(b));
+  const CTA_RANK = new Map(CTA_ORDER.map((charIndex, rank) => [charIndex, rank]));
+
+  function ctaIndexAt(center, metrics, x, y) {
+    const rowY =
+      Math.round((center.y - metrics.lineHeight / 2) / metrics.lineHeight) *
+      metrics.lineHeight;
+    if (Math.abs(y - rowY) > 0.01) return null;
+
+    const left = center.x - (CTA.length * metrics.charWidth) / 2;
+    const index = Math.floor((x + metrics.charWidth / 2 - left) / metrics.charWidth);
+    return index >= 0 && index < CTA.length ? index : null;
+  }
+
+  function ctaRevealed(index, progress) {
+    const rank = CTA_RANK.get(index);
+    return rank !== undefined && progress >= (rank + 1) / CTA_ORDER.length;
+  }
+
+  // ── Setup ──────────────────────────────────────────────────────────────────
+  const canvas = document.getElementById('wall');
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    document.getElementById('fallback').classList.add('show');
+    return;
+  }
+
+  const readVar = (name) =>
+    getComputedStyle(canvas).getPropertyValue(name).trim();
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const smallScreen  = window.matchMedia('(max-width: 767px)');
+
+  let frame = null;
+  let easedOffset = 0;      // what is drawn
+  let targetOffset = 0;     // what input drives
+  let dragOriginX = 0;
+  let dragOriginOffset = 0;
+  let dragPointer = null;
+  let lastFrameAt = 0;
+
+  let isSmall = smallScreen.matches;
+  let isReduced = reduceMotion.matches;
+
+  let paper = '', ink = '', cta = '', fontFamily = '';
+  const startedAt = performance.now() / 1000;
+
+  const dpr = () => {
+    const ratio = window.devicePixelRatio || 1;
+    return isSmall ? Math.min(ratio, MOBILE_DPR_CAP) : ratio;
+  };
+
+  function syncSurface() {
+    const ratio = dpr();
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.round(rect.width * ratio);
+    const h = Math.round(rect.height * ratio);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    paper      = readVar('--paper');
+    ink        = readVar('--ink');
+    cta        = readVar('--cta');
+    fontFamily = readVar('--font-mono');
+  }
+
+  // The strip is finite; clamp so you can never drag past its ends.
+  function clampOffset(value) {
+    const min = -(BLOCK_WIDTH - window.innerWidth + COLUMN_PITCH);
+    return Math.min(0, Math.max(value, min));
+  }
+
+  function schedule() {
+    if (frame === null) frame = requestAnimationFrame(render);
+  }
+
+  // Flush a batched run of same-colored glyphs in one fillText call.
+  function flush(run, startX, style, y) {
+    if (!run) return;
+    ctx.fillStyle = style;
+    ctx.fillText(run.toUpperCase(), startX, y);
+  }
+
+  function draw(time) {
+    const ratio = dpr();
+    const rect = canvas.getBoundingClientRect();
+    if (
+      canvas.width !== Math.round(rect.width * ratio) ||
+      canvas.height !== Math.round(rect.height * ratio)
+    ) {
+      syncSurface();
+    }
+
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.save();
+    ctx.textBaseline = 'top';
+
+    const metrics = metricsFor(ctx, fontFamily);
+    const columns = buildColumns(easedOffset, window.innerWidth, metrics);
+
+    const center = { x: rect.width / 2, y: rect.height / 2 };
+    const progress = Math.min(
+      1,
+      (isReduced ? REVEAL_SECONDS : Math.max(0, time - startedAt)) / REVEAL_SECONDS
+    );
+
+    const shift = -easedOffset;
+    // Keep glyph cells on a stable sub-pixel lattice while scrolling.
+    const startX =
+      (((easedOffset + COLUMN_PAD) % metrics.charWidth) + metrics.charWidth) %
+        metrics.charWidth -
+      metrics.charWidth;
+
+    ctx.font = metrics.font;
+
+    for (let y = 0; y < rect.height; y += metrics.lineHeight) {
+      let run = '';
+      let runStartX = startX;
+      let runStyle = ink;
+
+      for (let x = startX; x < rect.width + metrics.charWidth; x += metrics.charWidth) {
+        const column = columnAt(columns, x + shift);
+        const [dx, dy] = warp(
+          x, y, time, rect.width, rect.height, metrics,
+          column ? column.anchor : 0
+        );
+
+        const ctaIndex = ctaIndexAt(center, metrics, x, y);
+        const glyph =
+          ctaIndex === null
+            ? charAt(columns, x + shift + dx, y + dy, metrics)
+            : CTA[ctaIndex];
+        const style =
+          ctaIndex !== null && ctaRevealed(ctaIndex, progress) ? cta : ink;
+
+        if (style !== runStyle) {
+          flush(run, runStartX, runStyle, y);
+          run = '';
+          runStartX = x;
+          runStyle = style;
+        }
+        run += glyph;
+      }
+
+      flush(run, runStartX, runStyle, y);
+    }
+
+    ctx.restore();
+  }
+
+  function render(now) {
+    frame = null;
+
+    // Mobile runs at 24fps; desktop is uncapped.
+    const budget = isSmall ? MOBILE_FRAME_MS : 0;
+    if (!isReduced && budget > 0 && lastFrameAt > 0 && now - lastFrameAt < budget) {
+      schedule();
+      return;
+    }
+    lastFrameAt = now;
+
+    easedOffset = isReduced
+      ? targetOffset
+      : easedOffset + (targetOffset - easedOffset) * EASE;
+
+    draw(isReduced ? 0 : performance.now() / 1000);
+
+    // Reduced motion draws a still frame and only redraws on input.
+    if (!isReduced) schedule();
+  }
+
+  // ── Input ──────────────────────────────────────────────────────────────────
+  // Don't hijack gestures aimed at real controls.
+  const isInteractive = (target) =>
+    target instanceof Element &&
+    !!target.closest('a, button, input, textarea, select, [role="dialog"]');
+
+  // The original swallows the wheel outright, which it can afford because its
+  // page never scrolls. Embedded in a gallery iframe that would trap the host
+  // page's scroll, so when framed the wheel is left alone and drag / arrow
+  // keys do the moving.
+  const framed = window.top !== window.self;
+
+  const onWheel = (e) => {
+    if (framed || isInteractive(e.target)) return;
+    e.preventDefault();
+    const delta =
+      Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    targetOffset = clampOffset(targetOffset - delta);
+    if (isReduced) schedule();
+  };
+
+  const onPointerDown = (e) => {
+    if (isInteractive(e.target)) return;
+    dragOriginX = e.clientX;
+    dragOriginOffset = targetOffset;
+    dragPointer = e.pointerId;
+    document.documentElement.classList.add('dragging');
+  };
+
+  const onPointerMove = (e) => {
+    if (dragPointer !== e.pointerId) return;
+    targetOffset = clampOffset(dragOriginOffset + (e.clientX - dragOriginX));
+    if (isReduced) schedule();
+  };
+
+  const onPointerUp = (e) => {
+    if (dragPointer !== e.pointerId) return;
+    dragPointer = null;
+    document.documentElement.classList.remove('dragging');
+  };
+
+  const onKeyDown = (e) => {
+    if (isInteractive(e.target)) return;
+    if (e.key === 'ArrowRight') targetOffset -= COLUMN_PITCH;
+    else if (e.key === 'ArrowLeft') targetOffset += COLUMN_PITCH;
+    else return;
+    targetOffset = clampOffset(targetOffset);
+    if (isReduced) schedule();
+  };
+
+  const onResize = () => {
+    syncSurface();
+    targetOffset = clampOffset(targetOffset);
+    if (isReduced) schedule();
+  };
+
+  reduceMotion.addEventListener('change', (e) => {
+    isReduced = e.matches;
+    schedule();
+  });
+  smallScreen.addEventListener('change', (e) => {
+    isSmall = e.matches;
+    lastFrameAt = 0;
+    syncSurface();
+    schedule();
+  });
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+  window.addEventListener('keydown', onKeyDown);
+
+  syncSurface();
+  schedule();
+})();
+</script>
+</body>
+</html>
