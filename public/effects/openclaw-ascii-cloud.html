@@ -1,0 +1,302 @@
+<!doctype html>
+<!--
+  OpenClaw — hero banner ASCII cloud
+  ─────────────────────────────────────────────────────────────────────────────
+  Rebuild of the background behind OpenClaw's hero banner at the top of
+  https://openclaw.ai/. The live banner is a single JS-generated <pre> of ASCII
+  art: a 27-row × ~988-column field of monospace glyphs arranged as concentric
+  arcs (centred near the top) with a density ramp
+  ' ' → '.' → ':' → '-' → '=' → '+' → 'x' → 'X' → '#' → '8' → '@', coral
+  rgb(245,101,74) at opacity 0.65, 11px / line-height 14.3, white-space: pre.
+
+  The <pre> is ~1677px wide, centered in a flex (justify-center) .hero-art
+  wrapper only 1280px wide with overflow: hidden — so the cloud overflows
+  equally on both sides and is clipped. The wrapper carries a linear-gradient
+  mask (transparent 0% → black 40% → black 68% → transparent 92%) so the cloud
+  fades in from the top and out toward the bottom.
+
+  No canvas, no shader — but the live banner *does* animate: a requestAnimationFrame
+  loop rewrites the <pre>'s textContent every frame so a bright wave radiates
+  outward along the arcs. Measured: ~80% of cells shift ±1 on the ramp each
+  ~220ms, in coherent runs along arcs — a travelling brightness wave moving
+  outward, not random twinkle. The central "glow" is just the denser
+  '@'/'#'/'8' runs. Here the arcs are generated procedurally (a bright gaussian
+  core + gaussian rings every 18 radius units) rather than stored verbatim, so
+  the file stays compact and self-contained. The wave is reproduced: the static
+  arcs are precomputed into baseIdx[r][c], then each frame an outward-traveling
+  sine wave in radius (amplitude ~2.3 ramp-steps, wavelength 48, period 6.0s)
+  plus a small per-cell shimmer is added and clamped to the ramp, re-rendered at
+  ~30fps — a slow, sparse radiating pulse with few simultaneous crests. A CSS `cloud-drift` keyframe also floats the whole <pre> ±22px over 26s
+  (an addition the original lacks). The heading matches the live banner:
+  sans-serif #ededed with "really" in an italic serif in the coral.
+
+  Self-contained — no CDN, no fonts, no images. Static values from the
+  rendered openclaw.ai homepage. All motion disabled under prefers-reduced-motion.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw — ASCII Cloud Banner</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading.">
+  <link rel="canonical" href="https://fx.statico.io/effects/openclaw-ascii-cloud.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/openclaw-ascii-cloud.md" title="ASCII Cloud Banner (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="ASCII Cloud Banner">
+  <meta property="og:description" content="A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading.">
+  <meta property="og:url" content="https://fx.statico.io/effects/openclaw-ascii-cloud.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="ASCII Cloud Banner">
+  <meta name="twitter:description" content="A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/openclaw-ascii-cloud.html#effect","name":"ASCII Cloud Banner","url":"https://fx.statico.io/effects/openclaw-ascii-cloud.html","abstract":"A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading.","description":"A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://openclaw.ai/","mainEntityOfPage":"https://fx.statico.io/demos/openclaw-ascii-cloud","dateModified":"2026-07-31T05:21:25.296Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/openclaw-ascii-cloud.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"ASCII Cloud Banner","item":"https://fx.statico.io/demos/openclaw-ascii-cloud"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/openclaw-ascii-cloud.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg:    #101012;   /* openclaw body background */
+      --coral: #f5654a;   /* rgb(245,101,74) — banner ASCII + accent */
+      --fg:    #ededed;   /* rgb(237,237,237) — heading text */
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--fg);
+      font-family: "Switzer", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .hero {
+      position: relative; width: 100%; height: 100%; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 22px; padding: 0 24px;
+    }
+    /* Dot-grid backdrop — matches .hero::before on the live site: a tiled
+       radial-gradient dot field, masked to fade out toward the bottom. Sits
+       behind the ASCII cloud (z-index 0) and the content (z-index 1). */
+    .hero::before {
+      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(rgba(237, 237, 237, 0.09) 1px, transparent 1.5px);
+      background-size: 26px 26px;
+      -webkit-mask-image: linear-gradient(#000, rgba(0, 0, 0, 0) 90%);
+              mask-image: linear-gradient(#000, rgba(0, 0, 0, 0) 90%);
+    }
+    /* ASCII cloud wrapper — matches .hero-art on the live site: flex / justify-center,
+       overflow hidden, fixed height, and the linear-gradient mask that fades the
+       cloud in from the top (transparent 0% → black 40%) and out at the bottom
+       (black 68% → transparent 92%). The <pre> inside is wider than this wrapper,
+       so it overflows equally on both sides and is clipped. */
+    .hero-art {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 1280px; height: 36vh; min-height: 216px;
+      display: flex; justify-content: center; align-items: flex-start;
+      overflow: hidden; pointer-events: none; z-index: 0;
+      -webkit-mask-image: linear-gradient(rgba(0,0,0,0) 0%, #000 40%, #000 68%, rgba(0,0,0,0) 92%);
+              mask-image: linear-gradient(rgba(0,0,0,0) 0%, #000 40%, #000 68%, rgba(0,0,0,0) 92%);
+    }
+    /* The cloud: monospace 11px, coral, opacity 0.65, line-height 14.3.
+       white-space: pre keeps the generated column alignment; text-align: center
+       recentres each line. width is left to the content (~1677px) so it
+       overflows the 1280px wrapper and is clipped by the mask + overflow. */
+    .hero-art pre {
+      font-family: ui-monospace, "SF Mono", "Fira Code", "JetBrains Mono", Menlo, monospace;
+      font-size: 11px; line-height: 14.3px; white-space: pre; text-align: center;
+      color: var(--coral); opacity: 0.65; margin: 0;
+      transform: translateY(-2vh);   /* lift so the densest band sits behind the heading */
+      animation: cloud-drift 26s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+    /* slow horizontal float of the whole cloud — the live banner is static; this
+       gentle drift is an addition so the effect reads as alive in the gallery. */
+    @keyframes cloud-drift {
+      from { transform: translate(-22px, -2vh); }
+      to   { transform: translate( 22px, -2vh); }
+    }
+    .hero-content {
+      position: relative; z-index: 1; display: flex; flex-direction: column;
+      align-items: center; text-align: center; gap: 22px; max-width: 760px;
+    }
+    .hero-eyebrow {
+      font-family: ui-monospace, "SF Mono", "Fira Code", "JetBrains Mono", Menlo, monospace;
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--coral);
+    }
+    .title {
+      font-family: "Switzer", system-ui, sans-serif; font-weight: 600;
+      font-size: clamp(2.2rem, 6vw, 4rem); line-height: 1.1; letter-spacing: -0.02em;
+      color: var(--fg);
+    }
+    /* "really" — italic serif in the coral accent, like the live banner */
+    .title em {
+      font-family: "Sentient", Georgia, "Times New Roman", serif;
+      font-style: italic; font-weight: 500; color: var(--coral);
+    }
+    .description {
+      font-size: clamp(1rem, 1.6vw, 1.15rem); line-height: 1.5;
+      color: rgba(237,237,237,0.72); max-width: 560px;
+    }
+    .hero-actions { display: flex; gap: 12px; margin-top: 4px; }
+    .cta {
+      display: inline-flex; align-items: center; height: 46px; padding: 0 22px;
+      border-radius: 9999px; font-size: 15px; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+    }
+    .cta-primary { background: var(--coral); color: #1a0a06; }
+    .cta-primary:hover { box-shadow: 0 0 28px rgba(245,101,74,0.45); transform: translateY(-1px); }
+    .cta-ghost {
+      background: rgba(237,237,237,0.06); color: var(--fg);
+      border: 1px solid rgba(237,237,237,0.16);
+    }
+    .cta-ghost:hover { background: rgba(237,237,237,0.1); }
+    @media (prefers-reduced-motion: reduce) {
+      .cta { transition: none; }
+      .hero-art pre { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>ASCII Cloud Banner</h1>
+    <p>A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading.</p>
+    <h2>How it works</h2>
+    <p>This rebuilds the background behind OpenClaw's hero banner at the top of openclaw.ai. The entire effect on the live site is a single JS-generated &lt;pre&gt; of ASCII art — no canvas, no shader — and it is not static: a requestAnimationFrame loop rewrites the &lt;pre&gt;'s textContent every frame so a bright wave radiates outward along the arcs.</p>
+    <p>The cloud is a 27-row × ~760-column field of monospace glyphs arranged as concentric arcs centred near the top, with a density ramp   → . → : → - → = → + → x → X → # → 8 → @ toward the bright core. Measured live geometry: arcs centred around column ~347 / row ~11 in a ~988-wide grid, with ring peaks every ~4–8 radius units out to ~84+. The text is coral rgb(245,101,74) (#f5654a) at opacity: 0.65, set in an 11px monospace stack (ui-monospace, "SF Mono", "Fira Code", "JetBrains Mono", Menlo) with line-height: 1.3 and white-space: pre so the column alignment is preserved. Measuring the live churn: ~80% of cells shift ±1 up/down the ramp every ~220ms, in coherent runs along arcs (length stays constant; only the characters swap) — i.e. a travelling brightness wave moving outward, not random twinkle.</p>
+    <p>The &lt;pre&gt; is ~1677px wide and sits centered inside a display: flex; justify-content: center .hero-art wrapper only 1280px wide with overflow: hidden — so the cloud overflows equally on both sides and is clipped, exactly like the site. The wrapper carries a linear-gradient mask rgba(0,0,0,0) 0% → #000 40% → #000 68% → rgba(0,0,0,0) 92% so the cloud fades in from the top and out toward the bottom. Behind it, header.hero::before paints a tiled radial-gradient dot field (26px 26px, rgba(237,237,237,0.09) dots) masked to fade out toward the bottom — the faint grid the cloud floats over. The central "glow" is not a filter or a radial gradient — it is just the higher-density @/#/8 runs reading brighter against the #101012 body background.</p>
+    <p>The heading matches the live banner: sans-serif #ededed with the word "really" set in an italic serif (Sentient, Georgia, serif) in the same coral; the eyebrow is uppercase coral mono (letter-spacing: 0.1em). The two CTAs (a solid coral pill and a ghosted outline pill) round out the hero.</p>
+    <p>Two honest deviations. (1) The arcs are generated procedurally rather than storing the live &lt;pre&gt; verbatim: a bright gaussian core (σ 7) plus gaussian rings (σ 2.6) every 18 radius units out to ~360, centred at (cx=380, cy=11), multiplied by a stable per-cell hash for the feathered fringe. (2) The radiating wave is reproduced rather than copied: the static arcs are precomputed once into baseIdx[r][c], then each frame an outward-traveling sine wave in radius AMP·sin(2π·(d/WL − t/PERIOD)) (WL 48, period 6.0s, amplitude 2.3 ramp-steps) plus a small per-cell shimmer is added and clamped to the ramp, re-rendered at ~30fps — a slow, sparse radiating pulse with few simultaneous crests. A CSS cloud-drift keyframe also floats the whole &lt;pre&gt; ±22px horizontally over 26s (an addition the original lacks). Fully self-contained: no external scripts, fonts, or images; all motion is disabled under prefers-reduced-motion (one static frame, no drift, no wave — only the CTA hover transition remains).</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/openclaw-ascii-cloud.md">https://fx.statico.io/effects/openclaw-ascii-cloud.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/openclaw-ascii-cloud">https://fx.statico.io/demos/openclaw-ascii-cloud</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on OpenClaw (https://openclaw.ai/) — credit to OpenClaw / Peter Steinberger. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <header class="hero">
+    <div class="hero-art" aria-hidden="true"><pre id="cloud"></pre></div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">Open source · Runs on your machine</p>
+      <h1 class="title">The AI that <em>really</em> does things.</h1>
+      <p class="description">Organizes your inbox, sends emails, manages your calendar, checks you in for flights.<br>All from WhatsApp, Telegram, or any chat app you already use.</p>
+      <div class="hero-actions">
+        <a class="cta cta-primary" href="#">Get started</a>
+        <a class="cta cta-ghost" href="#">Read the docs</a>
+      </div>
+    </div>
+  </header>
+  <script>    // Procedural ASCII cloud — concentric arcs with an outward-traveling
+    // brightness wave, rendered into the <pre> as text so white-space:pre keeps
+    // the alignment. Density ramp matches the live banner:
+    //   space → . → : → - → = → + → x → X → # → 8 → @
+    //
+    // The live openclaw.ai hero is a JS-generated <pre> of ASCII arranged as
+    // nested semi-circular arcs centred near the top, and a requestAnimationFrame
+    // loop rewrites textContent every frame so a bright wave radiates outward
+    // along the arcs (measured: ~80% of cells shift ±1 per ~220ms, in coherent
+    // runs — a travelling wave, not random twinkle). That is reproduced here:
+    //   • static base = a bright core + Gaussian rings at increasing radii,
+    //     centred at (cx, cy) just below the top so the arcs open downward;
+    //   • each frame a travelling sine wave in radius pushes every ring's
+    //     density up/down the ramp, so successive arcs brighten in sequence
+    //     as the crest moves outward — the "radiating" pulse.
+    // A CSS `cloud-drift` keyframe adds a slow horizontal float on top.
+    (function () {
+      const pre = document.getElementById('cloud');
+      const COLS = 760, ROWS = 27;
+      const ramp = ' .:-=+xX#8@';
+      const RMAX = ramp.length - 1;
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const cx = COLS / 2;        // horizontal centre of the arcs
+      const cy = 30;              // vertical centre — just below the grid (arcs open upward, radiating from bottom centre)
+
+      // stable per-cell hash → [0,1): feathered edge texture + per-cell phase
+      const hash = (x, y) => {
+        let h = (x * 374761393 + y * 668265263) >>> 0;
+        h = (h ^ (h >>> 13)) * 1274126177 >>> 0;
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+      };
+
+      // ── Static base arcs, precomputed once ────────────────────────────────
+      // baseIdx[r][c] = static ramp index of the concentric arcs + core.
+      // Rings every 18 units out to ~360; a bright gaussian core sits at centre.
+      const RINGS = [];
+      for (let R = 6; R <= 360; R += 18) RINGS.push(R);
+      const RW = 2.6;            // ring half-width (Gaussian σ)
+      const CORE_SIG = 7;        // bright core σ
+      const baseIdx = [];
+      for (let r = 0; r < ROWS; r++) {
+        const row = [];
+        const dy = r - cy;
+        for (let c = 0; c < COLS; c++) {
+          const dx = c - cx;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          let v = 0.95 * Math.exp(-(d * d) / (2 * CORE_SIG * CORE_SIG));   // core
+          for (let R of RINGS) {
+            const t = (d - R) / RW;
+            v += 0.5 * Math.exp(-(t * t) / 2);                            // rings
+          }
+          v *= 0.8 + 0.2 * hash(c, r);                                    // feather
+          let idx = Math.floor(Math.pow(v, 0.9) * (RMAX + 0.999));
+          if (idx < 0) idx = 0;
+          else if (idx > RMAX) idx = RMAX;
+          row.push(idx);
+        }
+        baseIdx.push(row);
+      }
+
+      // ── Outward-traveling brightness wave ────────────────────────────────
+      // A sine wave in radius moves outward over time: every ring oscillates
+      // up/down the ramp, and the crest sweeps from centre → edge, so the arcs
+      // light up in sequence (the radiating pulse). AMP is in ramp-steps so the
+      // wave is clearly visible; a small per-cell shimmer adds texture.
+      const WL = 48;            // wave wavelength (radius units) — fewer simultaneous crests
+      const PERIOD = 6.0;       // seconds per wave cycle — slow, gentle radiating pulse
+      const AMP = 2.3;          // ramp-step swing (±2, occasionally ±3)
+      const SHIMMER = 0.18;
+      const TWO_PI = 6.2831853;
+
+      function render(t) {
+        const ph0 = (t / PERIOD) * TWO_PI;
+        const lines = new Array(ROWS);
+        for (let r = 0; r < ROWS; r++) {
+          const base = baseIdx[r];
+          const dy = r - cy;
+          let line = '';
+          for (let c = 0; c < COLS; c++) {
+            const dx = c - cx;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            const wave = AMP * Math.sin((d / WL) * TWO_PI - ph0);
+            const sh = SHIMMER * Math.sin(c * 0.37 + r * 0.53 + t * 1.8 + hash(c, r) * TWO_PI);
+            let idx = Math.round(base[c] + wave + sh);
+            if (idx < 0) idx = 0;
+            else if (idx > RMAX) idx = RMAX;
+            line += ramp[idx];
+          }
+          lines[r] = line;
+        }
+        pre.textContent = lines.join('\n');
+      }
+
+      if (reduced) {
+        render(0);                          // one static frame, no wave
+      } else {
+        // ~30fps re-render: fast enough to read as a live radiating wave, easy
+        // on the CPU. The live site re-renders every rAF.
+        const FPS = 30;
+        const start = performance.now();
+        let last = -1;
+        function frame(now) {
+          const t = (now - start) / 1000;
+          const step = Math.floor(t * FPS);
+          if (step !== last) { last = step; render(t); }
+          requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+      }
+    })();</script>
+</body>
+</html>
