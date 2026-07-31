@@ -53,6 +53,7 @@ any JavaScript.
 | `resend-conic-border` | A card whose border is a bright arc that sweeps around the perimeter, painted with a rotating conic gradient. | https://resend.com/home |
 | `coderabbit-dither` | A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front. | https://app.coderabbit.ai/login |
 | `nell-text-warp` | A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character. | https://nell.ai/ |
+| `openclaw-ascii-cloud` | A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading. | https://openclaw.ai/ |
 <!-- a14y:end effects -->
 
 ## Attribution expectation
