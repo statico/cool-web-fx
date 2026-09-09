@@ -14,7 +14,7 @@
     "agent-docs:check": "node scripts/sync-agent-docs.mjs --check && node scripts/inject-effect-metadata.mjs --check"
   },
   "devDependencies": {
-    "astro": "^4.16.0",
+    "astro": "^7.2.8",
     "playwright": "^1.61.1"
   },
   "dependencies": {
