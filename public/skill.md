@@ -54,6 +54,7 @@ any JavaScript.
 | `coderabbit-dither` | A slowly tumbling extruded glyph, raymarched and then re-rendered as vertical ASCII-style bars whose width tracks brightness — with a headline in front. | https://app.coderabbit.ai/login |
 | `nell-text-warp` | A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character. | https://nell.ai/ |
 | `openclaw-ascii-cloud` | A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines fading in from the top, behind a bold heading. | https://openclaw.ai/ |
+| `testerarmy-fireflies` | A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies. | https://tester.army/e2e |
 <!-- a14y:end effects -->
 
 ## Attribution expectation

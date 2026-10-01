@@ -1,0 +1,380 @@
+<!doctype html>
+<!--
+  tester.army e2e — dithered firefly field
+  ─────────────────────────────────────────────────────────────────────────────
+  Rebuild of the hero background on https://tester.army/e2e. On the live site
+  it is a 2D canvas ("FireflyCanvas") that loads /e2e/firefly-bayer.png — a
+  1600×851, 4-colour Bayer-dithered image of a glowing two-humped dune
+  (#161616, #58554c, #898477, #c3bcaa) — rotates it 180° so the glow rises from
+  the bottom, and samples it every 2px. Each 2×2 cell becomes a "star" with
+  probability lum²·1.05 of its palette colour, so bright areas are dense and
+  the tails are a sparse scatter of dots on rgb(17,17,17).
+
+  Every star is a spring particle (ParticleField): the cursor shoves dots out
+  of a ~100px radius (smoothstep falloff, plus the pointer's own velocity),
+  they spring home (k 110, damping 11, max 48px displacement), and a handful
+  per second (12/s) detach and float up off the top like fireflies, leaving a
+  hole until they exit. Clicking the command box or GitHub button fires a
+  blast (4.5× radius, strength 1600). Only displaced particles are drawn each
+  frame: the static star image is blitted, the moved cells are punched out
+  with the background colour, and the particles are drawn at their offsets.
+
+  A second canvas (DitheredHeroFade) lays rgb(17,17,17) over the top with an
+  alpha curve of 0.1 @ 0% → 0 @ 30% → 0.58 @ 65% → 1 @ 96%, ±3/255 per-pixel
+  noise to kill banding — so the dense glow at the bottom dissolves into the
+  page and only the scattered tails read through behind the copy.
+
+  Deviation: the dithered PNG is generated procedurally instead of shipped —
+  a height profile fitted to the measured column brightness of the original,
+  quantised to the same 4 colours with a 4×4 Bayer matrix. Self-contained: no
+  CDN, fonts, or images. Under prefers-reduced-motion the rising fireflies and
+  click blasts are off; the cursor push stays (it only moves on input).
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tester.army — Dithered Firefly Field</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies.">
+  <link rel="canonical" href="https://fx.statico.io/effects/testerarmy-fireflies.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/testerarmy-fireflies.md" title="Dithered Firefly Field (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Dithered Firefly Field">
+  <meta property="og:description" content="A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies.">
+  <meta property="og:url" content="https://fx.statico.io/effects/testerarmy-fireflies.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Dithered Firefly Field">
+  <meta name="twitter:description" content="A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/testerarmy-fireflies.html#effect","name":"Dithered Firefly Field","url":"https://fx.statico.io/effects/testerarmy-fireflies.html","abstract":"A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies.","description":"A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://tester.army/e2e","mainEntityOfPage":"https://fx.statico.io/demos/testerarmy-fireflies","dateModified":"2026-10-01T19:39:31.162Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/testerarmy-fireflies.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Dithered Firefly Field","item":"https://fx.statico.io/demos/testerarmy-fireflies"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/testerarmy-fireflies.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg:   #111111;  /* rgb(17,17,17) — body + canvas background */
+      --fg:   #f4f1ea;  /* heading (ta-sand-50) */
+      --line: rgba(255, 255, 255, 0.22);
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .hero { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #field { z-index: 0; touch-action: none; }
+    #fade  { z-index: 10; pointer-events: none; }
+    .content {
+      position: relative; z-index: 20; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 0 24px 8vh; text-align: center;
+    }
+    h1 {
+      font-size: clamp(38px, 4.5vw, 60px); font-weight: 500; line-height: 1.13;
+      letter-spacing: -0.02em;
+    }
+    p { margin-top: 16px; max-width: 640px; color: rgba(255, 255, 255, 0.7); line-height: 1.5; }
+    .ctas { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+    .ctas button {
+      font: 15px/1 ui-monospace, "SF Mono", Menlo, monospace; cursor: pointer;
+      height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 10px;
+    }
+    .cmd { background: rgba(17, 17, 17, 0.6); color: #fff; border: 1px solid var(--line); min-width: 300px; }
+    .cmd span { color: rgba(255, 255, 255, 0.5); }
+    .gh { background: #e8e6e1; color: #111; border: 0; text-transform: uppercase; }
+    .ctas button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Dithered Firefly Field</h1>
+    <p>A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and occasionally drift up off the top like fireflies.</p>
+    <h2>How it works</h2>
+    <p>This rebuilds the hero background on tester.army/e2e. On the live site it is a single 2D canvas that loads /e2e/firefly-bayer.png: a 1600×851, 4-color Bayer-dithered image of a glowing two-humped dune (#161616, #58554c, #898477, #c3bcaa). It rotates that image 180° so the glow rises from the bottom, then samples it every 2px. Each 2×2 cell becomes a "star" with probability lum² × 1.05 of its palette color (colors under 0.06 are dropped), so bright areas are dense and the tails are a sparse scatter of dots on rgb(17,17,17). The stars are pre-drawn once to an offscreen canvas and blitted "cover"-style every frame.</p>
+    <p>Every star is a spring particle, but only while it is displaced. The cursor wakes up every star within ~100px (scaled to 6.5% of the viewport width, clamped to 55–120px) and pushes it out with a smoothstep falloff plus a share of the pointer's own velocity. Woken particles spring back home (stiffness 110, damping 11), are tethered at 48px, and are put back to sleep once they settle within ~0.14px. About 12 stars per second also detach on their own and float up and off the top like fireflies, leaving a hole until they leave the screen. Clicking the command box or the GitHub button fires a blast (4.5× radius, strength 1600). Each frame the static image is drawn, every displaced star's home cell is punched out with the background color, and the particle is drawn at its current offset, so the cost scales with what is moving, not with the ~60k stars.</p>
+    <p>A second canvas lays rgb(17,17,17) over the field with an alpha curve of 0.1 @ 0% → 0 @ 30% → 0.58 @ 65% → 1 @ 96%, plus ±3/255 per-pixel noise to stop banding. The dense glow at the bottom dissolves into the page and only the scattered tails show through behind the copy.</p>
+    <p>One honest deviation: the dithered PNG is generated procedurally instead of shipped. It uses a height profile fitted to the measured per-column brightness of the original, quantized to the same 4 colors with a 4×4 Bayer matrix and the same seeded LCG for star selection. Fully self-contained: no external scripts, fonts, or images. Under prefers-reduced-motion the rising fireflies and click blasts are off. The cursor push stays, because it only moves in response to input.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/testerarmy-fireflies.md">https://fx.statico.io/effects/testerarmy-fireflies.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/testerarmy-fireflies">https://fx.statico.io/demos/testerarmy-fireflies</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on tester.army (https://tester.army/e2e) — credit to tester.army. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <main class="hero">
+    <canvas id="field" aria-hidden="true"></canvas>
+    <canvas id="fade" aria-hidden="true"></canvas>
+    <section class="content">
+      <h1>Open Source AI<br>testing framework</h1>
+      <p>Customizable TypeScript testing framework for web, mobile apps and more.</p>
+      <div class="ctas">
+        <button class="cmd burst" type="button"><span>$</span>npx e2e init</button>
+        <button class="gh burst" type="button">GitHub</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    const BG = 'rgb(17, 17, 17)';
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const hero = document.querySelector('.hero');
+
+    // ── Overlay fade (DitheredHeroFade) ──────────────────────────────────────
+    const STOPS = [[0, 0.1], [0.3, 0], [0.65, 0.58], [0.96, 1], [1, 1]];
+    const alphaAt = (t) => {
+      for (let i = 1; i < STOPS.length; i++) {
+        const [t0, a0] = STOPS[i - 1], [t1, a1] = STOPS[i];
+        if (t <= t1) return a0 + (a1 - a0) * (t - t0) / (t1 - t0);
+      }
+      return 1;
+    };
+    const fade = document.getElementById('fade');
+    function paintFade() {
+      const w = Math.max(1, hero.clientWidth), h = Math.max(1, hero.clientHeight);
+      fade.width = w; fade.height = h;
+      const ctx = fade.getContext('2d'), img = ctx.createImageData(w, h), d = img.data;
+      for (let y = 0; y < h; y++) {
+        const a = 255 * alphaAt(y / h);
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          d[i] = d[i + 1] = d[i + 2] = 17;
+          d[i + 3] = a + (Math.random() - 0.5) * 6;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    // ── Procedural stand-in for firefly-bayer.png ────────────────────────────
+    // Measured from the original (unrotated, glow at top): per 100px column,
+    // the top brightness A and the depth D where the glow dies out.
+    const IW = 1600, IH = 852, COLS = IW / 2, ROWS = IH / 2;
+    const A = [.32, .23, .24, .38, .54, .68, .79, .83, .80, .72, .53, .39, .41, .55, .69, .69];
+    const D = [150, 100, 100, 175, 275, 450, 700, 600, 350, 250, 175, 125, 150, 225, 400, 500];
+    const lerpCol = (arr, x) => {
+      const f = Math.min(Math.max(x / 100 - 0.5, 0), arr.length - 1);
+      const i = Math.min(Math.floor(f), arr.length - 2);
+      return arr[i] + (arr[i + 1] - arr[i]) * (f - i);
+    };
+    const PALETTE = ['rgb(22,22,22)', 'rgb(88,85,76)', 'rgb(137,132,119)', 'rgb(195,188,170)'];
+    const LUM = [22, 86, 133, 189].map((v) => v / 255);
+    const DENSITY = LUM.map((l) => { const t = l * l * 1.05; return t < 0.06 ? 0 : Math.min(1, t); });
+    const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+    let seed = 0x1352839;
+    const rand = () => (seed = (1664525 * seed + 0x3c6ef35f) >>> 0) / 4294967296;
+
+    const cellColor = new Uint8Array(COLS * ROWS);
+    const homes = [];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        // rotated 180°: glow rises from the bottom edge
+        const ox = IW - (2 * c + 1), oy = IH - (2 * r + 1);
+        const depth = lerpCol(D, ox);
+        const fall = Math.max(0, 1 - oy / depth);
+        const base = lerpCol(A, ox) * Math.pow(fall, 1.4);
+        const n = base > 0 ? base + (rand() - 0.5) * 0.12 : 0;
+        const lvl = Math.max(0, Math.min(3, Math.floor(n * 3 + BAYER[(r & 3) * 4 + (c & 3)] / 16)));
+        const i = r * COLS + c;
+        cellColor[i] = lvl;
+        if (rand() < DENSITY[lvl]) homes.push(i);
+      }
+    }
+    const stars = document.createElement('canvas');
+    stars.width = IW; stars.height = IH;
+    const sctx = stars.getContext('2d');
+    sctx.fillStyle = BG; sctx.fillRect(0, 0, IW, IH);
+    for (const i of homes) {
+      sctx.fillStyle = PALETTE[cellColor[i]];
+      sctx.fillRect((i % COLS) * 2, ((i / COLS) | 0) * 2, 2, 2);
+    }
+
+    // ── ParticleField: spring particles that only exist while displaced ──────
+    const CAP = 90000, CELL = 2, MAXD = 48;
+    const occupied = new Uint8Array(COLS * ROWS);
+    for (const i of homes) occupied[i] = 1;
+    const slot = new Int32Array(COLS * ROWS).fill(-1);
+    const px = new Float32Array(CAP), py = new Float32Array(CAP);
+    const vx = new Float32Array(CAP), vy = new Float32Array(CAP);
+    const cell = new Int32Array(CAP), mode = new Uint8Array(CAP); // mode 1 = rising firefly
+    let count = 0, radius = 100, exitY = -Infinity, rainCarry = 0;
+    let pointerIn = false, mx = -1e9, my = -1e9, mvx = 0, mvy = 0, lastMove = 0;
+
+    const homeX = (k) => (cell[k] % COLS) * CELL + CELL / 2;
+    const homeY = (k) => ((cell[k] / COLS) | 0) * CELL + CELL / 2;
+
+    function spawn(i, m, svx, svy) {
+      if (!occupied[i] || slot[i] !== -1 || count >= CAP) return;
+      const k = count++;
+      slot[i] = k; cell[k] = i; mode[k] = m;
+      px[k] = (i % COLS) * CELL + CELL / 2; py[k] = ((i / COLS) | 0) * CELL + CELL / 2;
+      vx[k] = svx; vy[k] = svy;
+    }
+    function deactivate(k) {
+      slot[cell[k]] = -1;
+      const last = --count;
+      if (k !== last) {
+        px[k] = px[last]; py[k] = py[last]; vx[k] = vx[last]; vy[k] = vy[last];
+        cell[k] = cell[last]; mode[k] = mode[last]; slot[cell[k]] = k;
+      }
+    }
+    function cellsAround(x, y, rad, fn) {
+      const c0 = Math.max(0, Math.floor((x - rad) / CELL)), c1 = Math.min(COLS - 1, Math.ceil((x + rad) / CELL));
+      const r0 = Math.max(0, Math.floor((y - rad) / CELL)), r1 = Math.min(ROWS - 1, Math.ceil((y + rad) / CELL));
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        const dx = c * CELL + CELL / 2 - x, dy = r * CELL + CELL / 2 - y, d2 = dx * dx + dy * dy;
+        if (d2 <= rad * rad) fn(r * COLS + c, dx, dy, Math.sqrt(d2) || 1);
+      }
+    }
+    function activateAround(x, y, pvx, pvy, speed) {
+      const kick = 3200 * 0.55 * speed;
+      cellsAround(x, y, radius, (i, dx, dy, d) => {
+        const g = 1 - d / radius, f = g * g * g;
+        spawn(i, 0, (dx / d) * kick * f / 60 + 1.6 * pvx * f, (dy / d) * kick * f / 60 + 1.6 * pvy * f);
+      });
+    }
+    function pointerMove(x, y, now) {
+      if (pointerIn) {
+        const dt = Math.max((now - lastMove) / 1000, 0.004);
+        mvx = 0.7 * mvx + ((x - mx) / dt) * 0.3;
+        mvy = 0.7 * mvy + ((y - my) / dt) * 0.3;
+        const speed = Math.min(Math.hypot(mvx, mvy) / 700, 1);
+        const steps = Math.max(1, Math.ceil(Math.hypot(x - mx, y - my) / (0.5 * radius)));
+        for (let s = 1; s <= steps; s++)
+          activateAround(mx + (x - mx) * s / steps, my + (y - my) * s / steps, mvx / 60, mvy / 60, speed);
+      }
+      mx = x; my = y; lastMove = now; pointerIn = true;
+    }
+    function pointerLeave() { pointerIn = false; mx = my = -1e9; }
+    function blast(x, y) {
+      const rad = radius * 4.5;
+      cellsAround(x, y, rad, (i) => spawn(i, 0, 0, 0));
+      for (let k = 0; k < count; k++) {
+        const dx = px[k] - x, dy = py[k] - y, d2 = dx * dx + dy * dy;
+        if (d2 > rad * rad) continue;
+        const d = Math.sqrt(d2) || 1, f = 1 - d / rad;
+        vx[k] += (dx / d) * 1600 * f + (Math.random() - 0.5) * 200 * f;
+        vy[k] += (dy / d) * 1600 * f + (Math.random() - 0.5) * 200 * f;
+      }
+    }
+    function rain(dt) {
+      rainCarry += dt * 12;
+      let n = Math.floor(rainCarry);
+      for (rainCarry -= n; n-- > 0;)
+        spawn(homes[(Math.random() * homes.length) | 0], 1, (Math.random() - 0.5) * 8, -(8 + 18 * Math.random()));
+    }
+    function step(dt, now) {
+      if (now - lastMove > 50) {
+        mvx *= 0.55; mvy *= 0.55;
+        if (mvx * mvx + mvy * mvy < 25) mvx = mvy = 0;
+      }
+      if (pointerIn) activateAround(mx, my, 0, 0, 0);
+      const r2 = radius * radius;
+      for (let k = 0; k < count; k++) {
+        let ax = 0, ay = 0;
+        if (pointerIn) {
+          const dx = px[k] - mx, dy = py[k] - my, d2 = dx * dx + dy * dy;
+          if (d2 < r2) {
+            const d = Math.sqrt(d2) || 1, a = 1 - d / radius, s = a * a * (3 - 2 * a), push = 4200 * s / d;
+            ax += dx * push + 1.6 * mvx * s * 8;
+            ay += dy * push + 1.6 * mvy * s * 8;
+          }
+        }
+        if (mode[k] === 1) {                       // firefly: drift up and away
+          ax -= 1.5 * vx[k]; ay -= 55;
+          vx[k] += ax * dt; vy[k] += ay * dt;
+          if (vy[k] < -85) vy[k] = -85;
+          px[k] += vx[k] * dt; py[k] += vy[k] * dt;
+          if (py[k] < exitY) deactivate(k--);
+          continue;
+        }
+        const hx = homeX(k), hy = homeY(k);          // spring home
+        ax += (hx - px[k]) * 110 - 11 * vx[k];
+        ay += (hy - py[k]) * 110 - 11 * vy[k];
+        vx[k] += ax * dt; vy[k] += ay * dt;
+        px[k] += vx[k] * dt; py[k] += vy[k] * dt;
+        let ox = px[k] - hx, oy = py[k] - hy, o2 = ox * ox + oy * oy;
+        if (o2 > MAXD * MAXD) {                      // tether
+          const o = Math.sqrt(o2);
+          px[k] = hx + ox / o * MAXD; py[k] = hy + oy / o * MAXD;
+          const out = (vx[k] * ox + vy[k] * oy) / o;
+          if (out > 0) { vx[k] -= ox / o * out; vy[k] -= oy / o * out; }
+          ox = px[k] - hx; oy = py[k] - hy; o2 = ox * ox + oy * oy;
+        }
+        if (o2 < 0.02 && vx[k] * vx[k] + vy[k] * vy[k] < 1) deactivate(k--);
+      }
+    }
+
+    // ── Canvas sizing: draw the star image "cover", like object-fit ──────────
+    const field = document.getElementById('field');
+    const ctx = field.getContext('2d');
+    let dpr = 1, scale = 1, offX = 0, offY = 0;
+    function resize() {
+      const rect = hero.getBoundingClientRect();
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      field.width = Math.round(rect.width * dpr);
+      field.height = Math.round(rect.height * dpr);
+      scale = Math.max(field.width / IW, field.height / IH);
+      offX = (field.width - IW * scale) / 2;
+      offY = (field.height - IH * scale) / 2;
+      exitY = -offY / scale - 4;
+      radius = Math.max(55, Math.min(120, (field.width / dpr) * 0.065)) * dpr / scale;
+      ctx.imageSmoothingEnabled = false;
+      paintFade();
+    }
+    resize();
+    new ResizeObserver(resize).observe(hero);
+
+    const toField = (cx, cy) => {
+      const r = field.getBoundingClientRect();
+      return [((cx - r.left) * dpr - offX) / scale, ((cy - r.top) * dpr - offY) / scale];
+    };
+    addEventListener('pointermove', (e) => pointerMove(...toField(e.clientX, e.clientY), performance.now()), { passive: true });
+    document.documentElement.addEventListener('mouseleave', pointerLeave);
+    addEventListener('blur', pointerLeave);
+    addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') pointerLeave(); });
+    document.querySelectorAll('.burst').forEach((b) => b.addEventListener('click', () => {
+      if (reduced) return;
+      const r = b.getBoundingClientRect();
+      blast(...toField(r.left + r.width / 2, r.top + r.height / 2));
+    }));
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min((now - last) / 1000, 1 / 30);
+      last = now;
+      if (!reduced) rain(dt);
+      step(dt, now);
+      ctx.drawImage(stars, 0, 0, IW, IH, offX, offY, IW * scale, IH * scale);
+      // punch out every displaced particle's home cell…
+      ctx.fillStyle = BG;
+      for (let k = 0; k < count; k++) {
+        const dx = px[k] - homeX(k), dy = py[k] - homeY(k);
+        if (dx * dx + dy * dy < 0.64) continue;
+        const c = cell[k] % COLS, r = (cell[k] / COLS) | 0;
+        const x0 = Math.round(offX + 2 * c * scale), y0 = Math.round(offY + 2 * r * scale);
+        ctx.fillRect(x0, y0, Math.round(offX + 2 * (c + 1) * scale) - x0, Math.round(offY + 2 * (r + 1) * scale) - y0);
+      }
+      // …then draw it where it actually is, one pass per palette colour
+      const size = CELL * scale;
+      for (let lvl = 1; lvl < PALETTE.length; lvl++) {
+        ctx.fillStyle = PALETTE[lvl];
+        for (let k = 0; k < count; k++) {
+          if (cellColor[cell[k]] !== lvl) continue;
+          const dx = px[k] - homeX(k), dy = py[k] - homeY(k);
+          if (dx * dx + dy * dy < 0.64) continue;
+          ctx.fillRect(offX + (px[k] - 1) * scale, offY + (py[k] - 1) * scale, size, size);
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>
