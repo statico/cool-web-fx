@@ -43,7 +43,8 @@ page in a `<pre><code class="language-html">` block, so it can be scraped from
 the rendered HTML without executing any JavaScript.
 
 Every effect is dependency-free except `resend-cube`, which loads Three.js as a
-pinned ES module from a CDN via an `<script type="importmap">`.
+pinned ES module from a CDN via an `<script type="importmap">`. `terminal-starfield`
+loads xterm.js and its fit addon from `/vendor/xterm/` (vendored, MIT).
 
 To embed one, either serve the whole file (or drop it in an `<iframe>`), or lift
 its `<style>` and `<script>` blocks plus the small bit of markup into your own
