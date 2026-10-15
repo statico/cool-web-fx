@@ -31,6 +31,7 @@ independent recreation of the look. Credit always goes to the original site.
 | Warped Text Wall | A wall of text in tall draggable columns, crisp at the top and smeared into hot-pink weather at the bottom as a flow field resamples every character. | [Nell](https://nell.ai/) |
 | ASCII Cloud Banner | A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines, behind a bold heading. | [OpenClaw](https://openclaw.ai/) |
 | Dithered Firefly Field | A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and drift up off the top like fireflies. | [tester.army](https://tester.army/e2e) |
+| Terminal Star Field | A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation. | [statico's gist](https://gist.github.com/statico/6be620d98837c786bc4913cb060e85b9) |
 
 ## Develop
 

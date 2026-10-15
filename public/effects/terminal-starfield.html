@@ -1,0 +1,384 @@
+<!doctype html>
+<!--
+  Terminal Star Field
+  ─────────────────────────────────────────────────────────────────────────────
+  statico's Bun terminal star field
+  (https://gist.github.com/statico/6be620d98837c786bc4913cb060e85b9), running
+  in a real terminal in the browser. The page is an xterm.js terminal and the
+  script is the original almost line for line: it builds ANSI escape strings
+  (cursor moves, 256-color SGR codes) and writes them to the terminal, the same
+  as it writes to process.stdout under Bun. Three parallax depth layers scroll
+  right-to-left at 1 / 2 / 4 cells per frame at 30fps, and the dirty-cell
+  renderer only rewrites the cells that changed since the last frame.
+
+  Changes from the original: term.write replaces process.stdout.write,
+  term.onData replaces raw-mode stdin (so the hotkeys work when the terminal
+  has focus), a resize clears the screen and resets the cell diff, and `q`
+  has nothing to quit. The hotkeys also have a form panel (mode, stars, speed,
+  color) that calls the same adjust functions.
+
+  Needs xterm.js 5.5.0 and @xterm/addon-fit 0.10.0, vendored (MIT) in
+  /vendor/xterm/ — copy that folder alongside this file.
+  Under prefers-reduced-motion one still frame is drawn and redrawn only when
+  a control changes.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal Star Field</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation.">
+  <link rel="canonical" href="https://fx.statico.io/effects/terminal-starfield.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/terminal-starfield.md" title="Terminal Star Field (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Terminal Star Field">
+  <meta property="og:description" content="A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation.">
+  <meta property="og:url" content="https://fx.statico.io/effects/terminal-starfield.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Terminal Star Field">
+  <meta name="twitter:description" content="A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/terminal-starfield.html#effect","name":"Terminal Star Field","url":"https://fx.statico.io/effects/terminal-starfield.html","abstract":"A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation.","description":"A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://gist.github.com/statico/6be620d98837c786bc4913cb060e85b9","mainEntityOfPage":"https://fx.statico.io/demos/terminal-starfield","dateModified":"2026-10-15T05:26:53.653Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/terminal-starfield.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Terminal Star Field","item":"https://fx.statico.io/demos/terminal-starfield"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/terminal-starfield.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <link rel="stylesheet" href="../vendor/xterm/xterm.css">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #term { position: absolute; inset: 8px; }
+    .xterm-viewport { overflow: hidden !important; }
+    .panel {
+      position: fixed; right: 16px; bottom: 16px; z-index: 10;
+      display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: center;
+      padding: 12px 14px; border: 1px solid #444; background: #000; color: #bcbcbc;
+      font: 13px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .panel legend { grid-column: 1 / -1; float: left; color: #808080; }
+    .panel output { min-width: 6ch; text-align: right; color: #eee; }
+    .panel input[type=range] { width: 130px; accent-color: #87d7ff; }
+    .panel .modes { grid-column: 2 / -1; display: flex; gap: 2ch; }
+    .panel input[type=radio] { accent-color: #87d7ff; }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Terminal Star Field</h1>
+    <p>A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation.</p>
+    <h2>How it works</h2>
+    <p>This is statico's Bun terminal script, running in a real terminal in the browser. The page is an [xterm.js](https://xtermjs.org/) terminal sized to the window, and the script is the original almost line for line. It builds ANSI escape strings (cursor moves like ESC[r;cH and 256-color codes like ESC[38;5;nm) and writes them to the terminal, the same way it writes to process.stdout under Bun. Every glyph sits in a monospace cell.</p>
+    <p>Three depth layers move 1, 2 and 4 cells per frame at 30fps. The far layer holds half the stars, the mid layer a third, and the near layer the rest. Each star gets a glyph from an ASCII set (. * +) or a Unicode set (· ∗ ⋆ ✦ ✧ ✶ ⁎ ⊹ ★) and an xterm 256-color index from a gray or a colored palette for its layer. The saturation level (0–4) sets the chance of a colored pick, and about 0.5% of stars pick a new color each frame. The renderer is a dirty-cell diff: it builds a map of this frame's cells, erases cells that went empty, and writes only the cells that changed. A nearer layer wins a shared cell. A HUD line on row 1 flashes the current setting.</p>
+    <p>Changes from the original are small. term.write replaces process.stdout.write. term.onData replaces raw-mode stdin, so the original hotkeys work (a/u, +/-, [/], s/d), and a page-level listener keeps them working after the panel takes focus. Added stars land at random across the sky instead of off the right edge, so a big batch doesn't arrive as one wave. A resize clears the screen and resets the diff. The hotkeys also have a form panel (a mode toggle and sliders for stars, speed and color) that calls the same adjust functions. xterm.js 5.5.0 and its fit addon are the only dependencies, vendored (MIT) in /vendor/xterm/ rather than loaded from a CDN, so copy that folder along with the file. Under prefers-reduced-motion one still frame is drawn, and it is redrawn only when a control changes.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/terminal-starfield.md">https://fx.statico.io/effects/terminal-starfield.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/terminal-starfield">https://fx.statico.io/demos/terminal-starfield</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on statico's gist (https://gist.github.com/statico/6be620d98837c786bc4913cb060e85b9) — credit to statico (Ian Langworth). This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <div id="term" role="img" aria-label="Terminal showing a parallax star field scrolling right to left"></div>
+
+  <fieldset class="panel">
+    <legend>star field</legend>
+    <span>mode</span>
+    <div class="modes">
+      <label><input type="radio" name="mode" value="unicode" checked> unicode</label>
+      <label><input type="radio" name="mode" value="ascii"> ascii</label>
+    </div>
+    <label for="stars">stars</label>
+    <input id="stars" type="range" min="5" max="1000" step="5">
+    <output for="stars" id="starsOut"></output>
+    <label for="speed">speed</label>
+    <input id="speed" type="range" min="0.05" max="8" step="0.05">
+    <output for="speed" id="speedOut"></output>
+    <label for="sat">color</label>
+    <input id="sat" type="range" min="0" max="4" step="1">
+    <output for="sat" id="satOut"></output>
+  </fieldset>
+
+  <script src="../vendor/xterm/xterm.js"></script>
+  <script src="../vendor/xterm/addon-fit.js"></script>
+  <script>
+    // ── Terminal (stands in for process.stdout / process.stdin) ────────────
+    const term = new Terminal({
+      fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace',
+      fontSize: 15,
+      cursorBlink: false,
+      scrollback: 0,
+      theme: { background: '#000000', foreground: '#d0d0d0' },
+    });
+    const fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.open(document.getElementById('term'));
+    fit.fit();
+
+    // ── Original script from here, nearly verbatim ─────────────────────────
+    let mode = 'unicode';
+    let cols = term.cols;
+    let rows = term.rows;
+
+    // Default ~50 stars for 80×24, scale linearly with area
+    const screenArea = cols * rows;
+    let starCount = Math.max(20, Math.round((screenArea / (80 * 24)) * 50));
+    let speedMult = 1;
+    let saturation = 1; // 0–4
+
+    // ── Glyphs & palettes ──
+    const ASCII_GLYPHS = ['.', '.', '.', '*', '*', '+'];
+    const UNICODE_GLYPHS = ['·', '∗', '⋆', '✦', '✧', '✶', '⁎', '⊹', '★'];
+    let glyphs = mode === 'ascii' ? ASCII_GLYPHS : UNICODE_GLYPHS;
+
+    // 256-color palettes: desaturated (white/gray) and saturated (colored)
+    // Saturation level 0–4 blends between them: 0=all white, 4=all color
+    const LAYER_WHITE = [
+      [240, 242, 244, 246],           // far  – subtle grays
+      [249, 250, 251, 252],           // mid  – bright grays
+      [255, 255, 231, 253, 254],      // near – pure whites
+    ];
+    // 256-color cube: 16 + 36r + 6g + b  (r,g,b ∈ 0–5)
+    const LAYER_COLOR = [
+      [60, 67, 68, 24, 25, 31, 95],                   // far  – dim blues, teals, mauves
+      [69, 75, 110, 111, 116, 74, 146, 180, 176],     // mid  – blues, cyans, lavender, warm
+      [117, 153, 159, 123, 87, 213, 219, 228, 210],   // near – vivid blue, cyan, pink, gold, coral
+    ];
+
+    function pickColor(layer) {
+      // saturation 0 → always white, 4 → always colored
+      return Math.random() * 4 < saturation ? pick(LAYER_COLOR[layer]) : pick(LAYER_WHITE[layer]);
+    }
+
+    const BASE_SPEEDS = [1, 2, 4]; // cells per frame per layer
+    // Proportion of stars per layer (far heavy, near sparse)
+    const LAYER_WEIGHT = [0.50, 0.33, 0.17];
+
+    // ── ANSI helpers ──
+    const CSI = '\x1b[';
+    const HIDE_CURSOR = `${CSI}?25l`;
+    const CLEAR = `${CSI}2J`;
+    const HOME = `${CSI}H`;
+    const RESET = `${CSI}0m`;
+    const goto = (r, c) => `${CSI}${r};${c}H`;
+    const fg256 = (n) => `${CSI}38;5;${n}m`;
+
+    // ── Star state ──
+    const pick = (a) => a[(Math.random() * a.length) | 0];
+
+    function spawnStar(layer, xOverride) {
+      return {
+        x: xOverride ?? cols + ((Math.random() * 20) | 0),
+        y: 1 + ((Math.random() * rows) | 0),
+        layer,
+        glyph: pick(glyphs),
+        color: pickColor(layer),
+      };
+    }
+
+    function populateStars() {
+      stars.length = 0;
+      for (let layer = 0; layer < 3; layer++) {
+        const count = Math.round(starCount * LAYER_WEIGHT[layer]);
+        for (let i = 0; i < count; i++) {
+          stars.push(spawnStar(layer, 1 + ((Math.random() * cols) | 0)));
+        }
+      }
+    }
+
+    const stars = [];
+    populateStars();
+
+    // ── Dirty-cell differential renderer ──
+    const prevFrame = new Map();
+    const cellKey = (r, c) => r * 10000 + c;
+
+    // HUD overlay: text that persists for a few frames, rendered on top
+    let hudText = '';
+    let hudTimer = 0;
+    function showHud(text, frames = 60) {
+      hudText = text;
+      hudTimer = frames;
+    }
+
+    function render() {
+      const buf = [];
+      const curFrame = new Map();
+
+      // Build current frame from stars
+      for (const s of stars) {
+        const c = Math.round(s.x);
+        if (c < 1 || c > cols || s.y < 1 || s.y > rows) continue;
+        const k = cellKey(s.y, c);
+        if (!curFrame.has(k) || s.layer > (curFrame.get(k).charCodeAt(0) - 48)) {
+          curFrame.set(k, `${s.layer}${fg256(s.color)}${s.glyph}`);
+        }
+      }
+
+      // HUD overlay on row 1
+      if (hudTimer > 0) {
+        if (!reduced) hudTimer--;
+        const padded = hudText.slice(0, cols);
+        for (let i = 0; i < padded.length; i++) {
+          curFrame.set(cellKey(1, i + 1), `9${fg256(240)}${padded[i]}`);
+        }
+        // Clear rest of row 1 so old stars don't poke through the HUD line
+        for (let i = padded.length; i < cols; i++) {
+          curFrame.set(cellKey(1, i + 1), '9 ');
+        }
+      }
+
+      // Erase cells from last frame no longer present
+      for (const [k] of prevFrame) {
+        if (!curFrame.has(k)) {
+          buf.push(goto((k / 10000) | 0, k % 10000), ' ');
+        }
+      }
+
+      // Draw new or changed cells
+      for (const [k, val] of curFrame) {
+        if (prevFrame.get(k) !== val) {
+          buf.push(goto((k / 10000) | 0, k % 10000), val.slice(1));
+        }
+      }
+
+      prevFrame.clear();
+      for (const [k, v] of curFrame) prevFrame.set(k, v);
+
+      buf.push(RESET);
+      term.write(buf.join(''));
+    }
+
+    // ── Simulation ──
+    function step() {
+      for (let i = stars.length - 1; i >= 0; i--) {
+        const s = stars[i];
+        s.x -= BASE_SPEEDS[s.layer] * speedMult;
+        if (s.x < 0) {
+          stars[i] = spawnStar(s.layer);
+        } else if (Math.random() < 0.005) {
+          s.color = pickColor(s.layer);
+        }
+      }
+    }
+
+    // ── Adjust helpers ──
+    function adjustStars(delta) {
+      starCount = Math.max(5, starCount + delta);
+      // Add or remove stars to match new count. New stars land anywhere in the
+      // sky (the original spawns them off the right edge, so a big batch
+      // arrives, leaves, and respawns together as a wave).
+      const target = starCount;
+      while (stars.length < target) {
+        const layer = Math.random() < 0.5 ? 0 : Math.random() < 0.65 ? 1 : 2;
+        stars.push(spawnStar(layer, 1 + ((Math.random() * cols) | 0)));
+      }
+      while (stars.length > target) stars.pop();
+      showHud(`stars: ${stars.length}`);
+    }
+
+    function adjustSpeed(delta) {
+      // Smaller steps at low speeds so you can fine-tune
+      const step = speedMult <= 0.25 ? 0.05 : 0.25;
+      const d = delta > 0 ? step : -step;
+      setSpeed(speedMult + d);
+    }
+    function setSpeed(v) {
+      speedMult = Math.max(0.05, Math.min(8, +(+v).toFixed(2)));
+      showHud(`speed: ${speedMult}x`);
+    }
+
+    function switchMode(newMode) {
+      if (mode === newMode) return;
+      mode = newMode;
+      glyphs = mode === 'ascii' ? ASCII_GLYPHS : UNICODE_GLYPHS;
+      // Re-glyph all existing stars
+      for (const s of stars) s.glyph = pick(glyphs);
+      showHud(`mode: ${mode}`);
+    }
+
+    const SAT_LABELS = ['white', 'low', 'medium', 'high', 'vivid'];
+    function adjustSaturation(delta) {
+      saturation = Math.max(0, Math.min(4, saturation + delta));
+      // Recolor all existing stars to reflect new saturation
+      for (const s of stars) s.color = pickColor(s.layer);
+      showHud(`saturation: ${SAT_LABELS[saturation]} (${saturation}/4)`);
+    }
+
+    const HELP = 'a/u: mode  +/-: stars  ]/[: speed  s/d: color';
+    const showHelp = () => showHud(HELP, 90); // 3 seconds at 30fps
+
+    // Returns false for keys that aren't hotkeys.
+    function hotkey(ch) {
+      switch (ch) {
+        case 'a': switchMode('ascii'); break;
+        case 'u': switchMode('unicode'); break;
+        case '+': case '=': adjustStars(10); break;
+        case '-': case '_': adjustStars(-10); break;
+        case '>': case ']': adjustSpeed(0.25); break;
+        case '<': case '[': adjustSpeed(-0.25); break;
+        case 's': adjustSaturation(1); break;
+        case 'd': adjustSaturation(-1); break;
+        default: return false;
+      }
+      return true;
+    }
+
+    // ── Raw input: xterm.js hands us keystrokes like raw-mode stdin ──
+    term.onData((data) => {
+      for (const ch of data) if (!hotkey(ch)) showHelp(); // unknown key → flash help
+      changed();
+    });
+
+    // Hotkeys keep working after the panel takes focus (arrows/Tab/space still
+    // drive the sliders and radios, since none of them are hotkeys).
+    addEventListener('keydown', (e) => {
+      if (e.target === term.textarea || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (hotkey(e.key)) { e.preventDefault(); changed(); }
+    });
+
+    // ── GUI panel: same adjust helpers, absolute values ──
+    const $ = (id) => document.getElementById(id);
+    function syncUI() {
+      $('stars').value = starCount; $('starsOut').value = stars.length;
+      $('speed').value = speedMult; $('speedOut').value = `${speedMult}x`;
+      $('sat').value = saturation; $('satOut').value = SAT_LABELS[saturation];
+      document.querySelector(`input[name=mode][value=${mode}]`).checked = true;
+    }
+    function changed() { syncUI(); if (reduced) render(); }
+
+    $('stars').addEventListener('input', (e) => { adjustStars(+e.target.value - starCount); changed(); });
+    $('speed').addEventListener('input', (e) => { setSpeed(e.target.value); changed(); });
+    $('sat').addEventListener('input', (e) => { adjustSaturation(+e.target.value - saturation); changed(); });
+    document.querySelectorAll('input[name=mode]').forEach((r) =>
+      r.addEventListener('change', (e) => { switchMode(e.target.value); changed(); }));
+
+    // ── Resize: refit the terminal, wipe the screen and the cell diff ──
+    addEventListener('resize', () => fit.fit());
+    term.onResize(({ cols: c, rows: r }) => {
+      cols = c; rows = r;
+      prevFrame.clear();
+      term.write(CLEAR + HOME);
+      populateStars();
+      render();
+    });
+
+    // ── Main loop ──
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    term.write(HIDE_CURSOR + CLEAR + HOME);
+    // Show help on start
+    showHud(`${mode} · ${cols}×${rows} · ${stars.length} stars · ${HELP}`, 90);
+    syncUI();
+    render();
+    term.focus();
+
+    const FPS = 30;
+    if (!reduced) {
+      setInterval(() => {
+        step();
+        render();
+      }, (1000 / FPS) | 0);
+    }
+  </script>
+</body>
+</html>
