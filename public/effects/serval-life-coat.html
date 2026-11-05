@@ -1,0 +1,462 @@
+<!doctype html>
+<!--
+  Serval — Life Coat (dark)
+  ─────────────────────────────────────────────────────────────────────────────
+  Port of the background behind "Full-stack ITSM built to replace ServiceNow"
+  on https://www.serval.com/, adapted for dark mode. Serval calls it the
+  "LifeCoat": a halftone dot grid with a serval's coat of spots in it, where
+  the spots behind the active card light up purple.
+
+  Pipeline, taken from the site's own JS bundle:
+    1. LifeField (CPU). A grid of 7px cells, seeded with random elliptical
+       "serval spots" (servalSpotLevels: density 0.16, size 1.5). The spots
+       are flood-filled into numbered blobs, and each blob gets a centroid
+       and radius. The class can run Conway's Life, but this section ships
+       with paused: true, so the coat stays still.
+    2. CursorField (CPU). A 96×96 "ink" field over the coat that decays with
+       τ = 0.7s. In this section the pointer mode is "card-center": the ink
+       is a box the size of the active card (ink 0.5), with a smooth falloff
+       0.07 of the field wide around it.
+    3. Each frame, a blob takes the highest ink under any of its cells and
+       eases toward it (in 0.12s, out 0.7s). A lit cell is boosted by
+       1 + glow · 7.2 · ink, shaped by glowRadial 0.65 (ink under the cell)
+       and glowCore 0.6 (distance from the blob's centre). The 7.2 itself
+       "breathes" ±20% at 2 rad/s.
+    4. Halftone pass (GPU). Square dots on a 5px grid. Dot size is
+       0.37 + 0.1·luma (luma = cell × contrast 1.6). A diagonal sparkle wave
+       (scale 6.5, speed 1.8, amount 0.27) shrinks the dots as it passes.
+       Colour is a 4-stop ramp on luma.
+
+  Dark-mode adaptation: the palette is Serval's own FEATURE_ROWS_DARK_SHADE
+  (glow #302251 → #703fdc → #c3aeff), on #09070f with grid dots at 9%
+  #703fdc. On the live site the coat is hidden when the page scrolls into its
+  dark surface. The pointer wash also changes: light mode multiplies a 30%
+  #ded3ff disc, and here it is a screen-blended #703fdc disc.
+
+  Deviation: the original renders through three.js WebGPU/TSL nodes. This is
+  one plain WebGL2 fragment shader with the same math. Self-contained: no
+  CDN, fonts, or images.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Serval — Life Coat (dark)</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode.">
+  <link rel="canonical" href="https://fx.statico.io/effects/serval-life-coat.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/serval-life-coat.md" title="Serval Life Coat (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Serval Life Coat">
+  <meta property="og:description" content="A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode.">
+  <meta property="og:url" content="https://fx.statico.io/effects/serval-life-coat.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Serval Life Coat">
+  <meta name="twitter:description" content="A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/serval-life-coat.html#effect","name":"Serval Life Coat","url":"https://fx.statico.io/effects/serval-life-coat.html","abstract":"A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode.","description":"A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://www.serval.com/","mainEntityOfPage":"https://fx.statico.io/demos/serval-life-coat","dateModified":"2026-11-05T21:12:12.490Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/serval-life-coat.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Serval Life Coat","item":"https://fx.statico.io/demos/serval-life-coat"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/serval-life-coat.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #09070f;            /* PAGE_PAPER_DARK */
+      --ink: #f4f3f8;
+      --muted: rgba(244, 243, 248, 0.58);
+      --stroke-10: rgba(255, 255, 255, 0.10);
+      --stroke-5: rgba(255, 255, 255, 0.06);
+      --brand: #9470ff;
+    }
+    html, body {
+      min-height: 100%; background: var(--bg); color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body { display: grid; place-items: center; min-height: 100vh; overflow-x: clip; padding: 72px 24px 96px; }
+    .wrap { position: relative; width: 100%; max-width: 1092px; display: flex; flex-direction: column; gap: 40px; }
+
+    h2 {
+      position: relative; z-index: 10; text-align: center; text-wrap: balance;
+      font-size: clamp(30px, 4vw, 48px); font-weight: 500; letter-spacing: -0.03em; line-height: 1.1;
+    }
+    /* Rotating product name: all names share one grid cell so the width never jumps. */
+    .swap { display: inline-grid; justify-items: start; white-space: nowrap; }
+    .swap > span { grid-area: 1 / 1; transition: opacity .5s ease, filter .5s ease; }
+    .swap > span:not(.on) { opacity: 0; filter: blur(6px); }
+
+    .rows { position: relative; display: flex; gap: 8px; }
+    .col  { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+
+    /* The coat bleeds past the cards and is feathered out by two intersected masks,
+       the same CSS vars the site sets (--life-bleed-*, --life-mask-*). */
+    .coat {
+      --bleed-left: 256px; --bleed-right: 180px; --bleed-top: 62px; --bleed-bottom: 110px;
+      --mask-x: 14%; --mask-y: 11%;
+      position: absolute; pointer-events: none; overflow: hidden;
+      left: calc(var(--bleed-left) * -1); right: calc(var(--bleed-right) * -1);
+      top: calc(var(--bleed-top) * -1); bottom: calc(var(--bleed-bottom) * -1);
+      -webkit-mask-image:
+        linear-gradient(to right, transparent 0, #000 var(--mask-x), #000 calc(100% - var(--mask-x)), transparent 100%),
+        linear-gradient(to bottom, transparent 0, #000 var(--mask-y), #000 calc(100% - var(--mask-y)), transparent 100%);
+      -webkit-mask-composite: source-in;
+      mask-image:
+        linear-gradient(to right, transparent 0, #000 var(--mask-x), #000 calc(100% - var(--mask-x)), transparent 100%),
+        linear-gradient(to bottom, transparent 0, #000 var(--mask-y), #000 calc(100% - var(--mask-y)), transparent 100%);
+      mask-composite: intersect;
+    }
+    .coat canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .wash {
+      position: absolute; top: 0; left: 0; width: 550px; height: 550px; opacity: 0;
+      background: radial-gradient(closest-side, rgba(112, 63, 220, 0.3), rgba(112, 63, 220, 0));
+      mix-blend-mode: screen; will-change: transform, opacity;
+    }
+
+    /* Frosted outer ring (backdrop-blur 48px blurs the lit dots into a halo) + solid inner panel. */
+    .card {
+      position: relative; z-index: 10; flex: 1; min-width: 0; display: flex;
+      padding: 8px; border-radius: 24px; border: 1px solid var(--stroke-10);
+      background: rgba(255, 255, 255, 0.02);
+      -webkit-backdrop-filter: blur(48px); backdrop-filter: blur(48px);
+    }
+    .panel {
+      flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;
+      padding: 24px; border-radius: 16px; border: 1px solid var(--stroke-5); background: #0f0d16;
+      min-height: 220px;
+    }
+    .big .panel { min-height: 480px; }
+    .card h3 { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+    .card p  { font-size: 14.5px; line-height: 1.5; color: var(--muted); max-width: 400px; }
+
+    .menu {
+      align-self: center; margin: auto 0; width: 200px; padding: 10px; border-radius: 10px;
+      border: 1px solid var(--stroke-10); background: #15121f; font-size: 14px; color: var(--muted);
+    }
+    .menu b { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 500; padding: 4px 6px 8px; }
+    .menu b i { width: 14px; height: 14px; border-radius: 4px; background: var(--brand); display: inline-block; }
+    .menu div { padding: 8px 6px; border-radius: 6px; }
+    .menu div:hover { background: rgba(255, 255, 255, 0.04); color: var(--ink); }
+
+    @media (max-width: 860px) {
+      .rows { flex-direction: column; }
+      .coat { --bleed-left: 24px; --bleed-right: 24px; }
+      .big .panel { min-height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Serval Life Coat</h1>
+    <p>A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode.</p>
+    <h2>How it works</h2>
+    <p>This ports the background behind "Full-stack ITSM built to replace ServiceNow" on serval.com. Serval calls it the LifeCoat. The site renders it with three.js WebGPU/TSL nodes. Here it is one plain WebGL2 fragment shader with the same math.</p>
+    <p>The coat (CPU). A grid of 7px cells is seeded with random rotated ellipses (servalSpotLevels: density 0.16, size 1.5). An 8-connected flood fill numbers the blobs, and each blob gets a centroid and radius. The class can run Conway's Life, but this section ships with paused: true, so the coat stays still.</p>
+    <p>The ink (CPU). A 96×96 ink field decays with τ = 0.7s. In card-center mode, the active card stamps a box of ink (0.5) the size of the card, with a smooth (1 − r)² falloff. Each blob takes the highest ink under its cells and eases toward it (in 0.12s, out 0.7s). A lit cell is boosted by 1 + glow · 7.2 · shape. The shape is set by the ink under the cell (glowRadial 0.65) and the distance from the blob's centre (glowCore 0.6). The 7.2 breathes ±20% at 2 rad/s.</p>
+    <p>The halftone (GPU). Square dots on a 5px grid. Each pixel samples the coat at its nearest grid point. Dot size is 0.37 + 0.1·luma (contrast 1.6). A diagonal sine wave (scale 6.5, speed 1.8, amount 0.27) shrinks the dots as it passes. Colour comes from a 4-stop ramp on luma.</p>
+    <p>Dark mode. On the live site the coat is hidden on the dark surface, so this is an adaptation. It uses Serval's own FEATURE_ROWS_DARK_SHADE palette (#302251 → #703fdc → #c3aeff) on #09070f, with grid dots at 9% #703fdc. The pointer wash is a screen-blended purple disc instead of the light theme's multiplied #ded3ff. Two intersected CSS gradient masks feather the edges, and the cards' 48px backdrop blur turns the lit dots behind them into a soft halo. Self-contained: no external scripts, fonts, or images.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/serval-life-coat.md">https://fx.statico.io/effects/serval-life-coat.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/serval-life-coat">https://fx.statico.io/demos/serval-life-coat</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Serval (https://www.serval.com/) — credit to Serval. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <div class="wrap">
+    <h2>Full-stack ITSM built to replace
+      <span class="swap" aria-label="ServiceNow"><span class="on">ServiceNow</span><span>JSM</span><span>Freshservice</span></span>
+    </h2>
+
+    <div class="rows">
+      <div class="coat" aria-hidden="true"><canvas id="coat"></canvas><div class="wash"></div></div>
+
+      <article class="card big" data-card data-default>
+        <div class="panel">
+          <div class="menu"><b><i></i>Changes</b><div>Emergency Change</div><div>Normal Change</div><div>Standard Change</div></div>
+          <h3>Enterprise-ready ITSM</h3>
+          <p>Manage requests, incidents, problems, changes, and HR journeys with AI assistance. Serval also works on top of an existing ITSM.</p>
+        </div>
+      </article>
+      <div class="col">
+        <article class="card" data-card>
+          <div class="panel">
+            <h3>Self-healing knowledge</h3>
+            <p>Serval uses ticket data to suggest updates for missing or stale knowledge across all your sources.</p>
+          </div>
+        </article>
+        <article class="card" data-card>
+          <div class="panel">
+            <h3>HAM, SAM, and CMDB</h3>
+            <p>Define CI ingestion workflows in natural language and manage all your hardware and software assets.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    // FEATURE_ROWS_TUNING + FEATURE_ROWS_DARK_SHADE, and the "dark" LifeCanvas preset's hover shape.
+    const T = {
+      gridSize: 5, softness: 0.1, cellSize: 7, seedDensity: 0.16, spotSize: 1.5,
+      fill: 0.1, inkLevel: 0.15, contrast: 1.6, gridOpacity: 0.09,
+      hoverStrength: 7.2, hoverGlowCore: 0.6, hoverBoxInk: 0.5, glowRadial: 0.65,
+      trailRadius: 0.07, trailTail: 0.7, easeIn: 0.12, easeOut: 0.7, fade: 0.06,
+      sparkle: { amount: 0.27, speed: 1.8, scale: 6.5, jitter: 0.1, softness: 0.3 },
+      bg: '#09070f', glowDim: '#302251', glowMid: '#703fdc', glowHot: '#c3aeff',
+      wash: { follow: 11, fadeIn: 5, fadeOut: 7.1 },
+    };
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ── Rotating product name ────────────────────────────────────────────────
+    const names = [...document.querySelectorAll('.swap > span')];
+    if (!reduced) {
+      let n = 0;
+      setInterval(() => {
+        names[n].classList.remove('on');
+        n = (n + 1) % names.length;
+        names[n].classList.add('on');
+        names[0].parentElement.setAttribute('aria-label', names[n].textContent);
+      }, 2600);
+    }
+
+    // ── LifeField: serval spots, blob labels, per-blob glow ────────────────
+    const FIELD = 96; // CursorField resolution
+    let L; // current life state, rebuilt on resize
+
+    function buildLife(cols, rows) {
+      const n = cols * rows;
+      const alive = new Uint8Array(n), id = new Int32Array(n);
+      // servalSpotLevels: random rotated ellipses, count set by the target coverage.
+      const h = Math.max(1, T.spotSize);
+      const count = Math.max(1, Math.round((n * T.seedDensity) / (Math.PI * h * h * 1.9)));
+      for (let s = 0; s < count; s++) {
+        const cx = Math.random() * cols, cy = Math.random() * rows;
+        const a = h * (0.6 + 0.9 * Math.random()), b = a * (1.4 + 1.4 * Math.random());
+        const th = Math.random() * Math.PI, co = Math.cos(th), si = Math.sin(th), R = Math.ceil(b);
+        const x0 = Math.round(cx), y0 = Math.round(cy);
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+          const u = co * dx + si * dy, v = -si * dx + co * dy;
+          if ((u * u) / (a * a) + (v * v) / (b * b) > 1) continue;
+          const x = x0 + dx, y = y0 + dy;
+          if (x >= 0 && x < cols && y >= 0 && y < rows) alive[y * cols + x] = 1;
+        }
+      }
+      // labelSpots: 8-connected flood fill into blobs.
+      let next = 1;
+      const stack = [];
+      for (let i = 0; i < n; i++) {
+        if (!alive[i] || id[i]) continue;
+        const k = next++;
+        id[i] = k; stack.push(i);
+        while (stack.length) {
+          const p = stack.pop(), px = p % cols, py = (p / cols) | 0;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const x = px + dx, y = py + dy;
+            if ((!dx && !dy) || x < 0 || x >= cols || y < 0 || y >= rows) continue;
+            const q = y * cols + x;
+            if (alive[q] && !id[q]) { id[q] = k; stack.push(q); }
+          }
+        }
+      }
+      // measureSpots: centroid + max radius per blob (for glowCore).
+      const cx = new Float32Array(next), cy = new Float32Array(next), rad = new Float32Array(next), cnt = new Float32Array(next);
+      for (let i = 0; i < n; i++) { const k = id[i]; if (k) { cx[k] += i % cols; cy[k] += (i / cols) | 0; cnt[k]++; } }
+      for (let k = 1; k < next; k++) { cx[k] /= cnt[k]; cy[k] /= cnt[k]; }
+      for (let i = 0; i < n; i++) {
+        const k = id[i]; if (!k) continue;
+        const d = Math.hypot((i % cols) - cx[k], ((i / cols) | 0) - cy[k]);
+        if (d > rad[k]) rad[k] = d;
+      }
+      // Which CursorField cell each life cell reads (both are top-down).
+      const fieldIdx = new Int32Array(n);
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
+        fieldIdx[y * cols + x] = Math.min(FIELD - 1, Math.floor((y / rows) * FIELD)) * FIELD + Math.min(FIELD - 1, Math.floor((x / cols) * FIELD));
+      return {
+        cols, rows, alive, id, cx, cy, rad, fieldIdx,
+        intensity: new Float32Array(n), cellInk: new Float32Array(n),
+        glow: new Float32Array(next), target: new Float32Array(next),
+        bytes: new Uint8Array(n),
+      };
+    }
+
+    // ── CursorField, card-center mode: a box of ink over the active card ──
+    const ink = new Float32Array(FIELD * FIELD);
+    function stepField(dt, box, aspect) {
+      const decay = Math.exp(-dt / T.trailTail);
+      for (let i = 0; i < ink.length; i++) ink[i] *= decay;
+      if (!box) return;
+      const rx = Math.max(1, FIELD * T.trailRadius), ry = Math.max(1, Math.min(FIELD, FIELD * T.trailRadius * aspect));
+      const m = FIELD * box.u, c = FIELD * box.v, f = FIELD * box.ex, p = FIELD * box.ey;
+      const x0 = Math.max(0, Math.floor(m - f - rx)), x1 = Math.min(FIELD - 1, Math.ceil(m + f + rx));
+      const y0 = Math.max(0, Math.floor(c - p - ry)), y1 = Math.min(FIELD - 1, Math.ceil(c + p + ry));
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const r = Math.hypot(Math.max(Math.abs(x + 0.5 - m) - f, 0) / rx, Math.max(Math.abs(y + 0.5 - c) - p, 0) / ry);
+        if (r > 1) continue;
+        const e = (1 - r) * (1 - r) * T.hoverBoxInk, i = y * FIELD + x;
+        if (e > ink[i]) ink[i] = e;
+      }
+    }
+
+    // LifeField.update with driveSpotTargets (trail mode) folded in.
+    function updateLife(dt, time) {
+      const { alive, id, cx, cy, rad, fieldIdx, intensity, cellInk, glow, target, bytes, cols } = L;
+      target.fill(0);
+      for (let i = 0; i < id.length; i++) {
+        const k = id[i]; if (!k) continue;
+        const v = ink[fieldIdx[i]];
+        cellInk[i] = v;
+        if (v > 0.02 && v > target[k]) target[k] = v;
+      }
+      const up = 1 - Math.exp(-dt / T.easeIn), down = 1 - Math.exp(-dt / T.easeOut);
+      for (let k = 1; k < glow.length; k++) {
+        const t = target[k], g = glow[k], s = g + (t - g) * (t > g ? up : down);
+        glow[k] = s < 0.004 && t <= 0 ? 0 : s;
+      }
+      const ease = 1 - Math.exp(-dt / T.fade);
+      const strength = T.hoverStrength * (1 + Math.sin(time * 2) * 0.2); // hover breath
+      for (let i = 0; i < alive.length; i++) {
+        const y = intensity[i] += ((alive[i] ? T.inkLevel : 0) - intensity[i]) * ease;
+        let A = y;
+        const k = id[i], e = k ? glow[k] : 0;
+        if (e > 0.004) {
+          let s = 1 - T.glowRadial * (1 - cellInk[i]);
+          if (rad[k] > 0.5) {
+            const d = Math.min(1, Math.hypot((i % cols) - cx[k], ((i / cols) | 0) - cy[k]) / rad[k]);
+            s *= 1 - T.hoverGlowCore * d * d;
+          }
+          A = y * (1 + s * strength * e);
+        }
+        bytes[i] = Math.min(1, Math.max(0, A)) * 255;
+      }
+    }
+
+    // ── Halftone pass (WebGL2) ──────────────────────────────────────────────
+    const canvas = document.getElementById('coat');
+    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    if (!gl) return;
+    const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    const mix3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+    const BG = hex(T.bg);
+    const C1 = mix3(BG, hex(T.glowMid), T.gridOpacity); // gridPreview: faint brand dots
+
+    const vs = `#version 300 es
+      void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Position = vec4(p * 2.0 - 1.0, 0, 1); }`;
+    const fs = `#version 300 es
+      precision highp float;
+      uniform sampler2D uLife;
+      uniform vec2 uSize;               // device px
+      uniform float uSpacing, uSoft, uTime;
+      uniform vec3 uBg, uC1, uC2, uC3, uC4;
+      out vec4 outColor;
+      const float CONTRAST = ${T.contrast.toFixed(3)};
+      const float DOT_MIN  = ${(T.fill + T.sparkle.amount).toFixed(3)}; // fill + sparkle amount
+      const float DOT_SIZE = ${T.fill.toFixed(3)};
+      const float SP_AMT = ${T.sparkle.amount.toFixed(3)}, SP_SPEED = ${T.sparkle.speed.toFixed(3)};
+      const float SP_SCALE = ${T.sparkle.scale.toFixed(3)}, SP_JIT = ${T.sparkle.jitter.toFixed(3)}, SP_SOFT = ${T.sparkle.softness.toFixed(3)};
+      void main() {
+        vec2 p = vec2(gl_FragCoord.x, uSize.y - gl_FragCoord.y);   // top-down, like the site's uv
+        vec2 c = floor(p / uSpacing + 0.5) * uSpacing;              // nearest grid point
+        vec2 uv = c / uSize;
+        float P = clamp(texture(uLife, uv).r * CONTRAST, 0.0, 1.0);
+        // sparkleGate: a diagonal sine wave that shrinks dots as it sweeps past.
+        float h = fract(sin(c.x * 0.113 + c.y * 0.217) * 43758.5453);
+        float wave = sin((uv.x + uv.y * 0.6) * SP_SCALE - uTime * SP_SPEED + h * SP_JIT * 6.2831853);
+        float size = max(0.0, DOT_MIN + P * DOT_SIZE - smoothstep(0.5 - SP_SOFT, 0.5 + SP_SOFT, wave) * SP_AMT);
+        float r = size * uSpacing * 0.5;
+        vec2 d = abs(p - c);
+        float cov = smoothstep(r + uSoft, r - uSoft, max(d.x, d.y)); // square dot
+        float t = P * 3.0;                                           // 4-stop ramp, customSmooth = 1
+        vec3 col = mix(mix(mix(uC1, uC2, clamp(t, 0.0, 1.0)), uC3, clamp(t - 1.0, 0.0, 1.0)), uC4, clamp(t - 2.0, 0.0, 1.0));
+        outColor = vec4(mix(uBg, col, cov), 1.0);
+      }`;
+    const sh = (type, src) => {
+      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+    gl.bindVertexArray(gl.createVertexArray());
+    const U = (n) => gl.getUniformLocation(prog, n);
+    gl.uniform3fv(U('uBg'), BG); gl.uniform3fv(U('uC1'), C1);
+    gl.uniform3fv(U('uC2'), hex(T.glowDim)); gl.uniform3fv(U('uC3'), hex(T.glowMid)); gl.uniform3fv(U('uC4'), hex(T.glowHot));
+    gl.uniform1i(U('uLife'), 0);
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+      gl.texParameteri(gl.TEXTURE_2D, k, v);
+
+    // ── Sizing ────────────────────────────────────────────────────────────
+    const coat = canvas.parentElement;
+    let W = 1, H = 1;
+    function resize() {
+      W = Math.max(1, coat.clientWidth); H = Math.max(1, coat.clientHeight);
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      const spacing = Math.max(2, T.gridSize * dpr);
+      gl.uniform2f(U('uSize'), canvas.width, canvas.height);
+      gl.uniform1f(U('uSpacing'), spacing);
+      gl.uniform1f(U('uSoft'), Math.max(0.5, T.softness * spacing * 0.3));
+      const cols = Math.min(256, Math.max(2, Math.round(W / T.cellSize)));
+      const rows = Math.min(192, Math.max(2, Math.round(H / T.cellSize)));
+      if (!L || L.cols !== cols || L.rows !== rows) L = buildLife(cols, rows);
+    }
+    new ResizeObserver(resize).observe(coat);
+    resize();
+
+    // ── Active card (hovered, else the default) + pointer wash ──────────────
+    const cards = [...document.querySelectorAll('[data-card]')];
+    const fallback = document.querySelector('[data-default]');
+    let active = fallback;
+    for (const c of cards) {
+      c.addEventListener('pointerenter', () => { active = c; });
+      c.addEventListener('pointerleave', () => { if (active === c) active = fallback; });
+      c.addEventListener('focusin', () => { active = c; });
+    }
+    const wash = coat.querySelector('.wash');
+    const ws = { x: 0, y: 0, o: 0, tx: 0, ty: 0, to: 0, placed: false };
+    addEventListener('pointermove', (e) => {
+      const r = coat.getBoundingClientRect();
+      ws.tx = e.clientX - r.left - wash.offsetWidth / 2;
+      ws.ty = e.clientY - r.top - wash.offsetHeight / 2;
+      ws.to = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom ? 1 : 0;
+      if (!ws.placed) { ws.x = ws.tx; ws.y = ws.ty; ws.placed = true; }
+    });
+    document.documentElement.addEventListener('pointerleave', () => { ws.to = 0; });
+
+    // ── Loop ──────────────────────────────────────────────────────────────
+    let last = 0, time = 0;
+    function frame(now) {
+      const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+      last = now;
+      if (!reduced) time += dt;
+
+      const cr = coat.getBoundingClientRect(), ar = active.getBoundingClientRect();
+      stepField(dt, {
+        u: (ar.left + ar.width / 2 - cr.left) / cr.width, v: (ar.top + ar.height / 2 - cr.top) / cr.height,
+        ex: ar.width / 2 / cr.width, ey: ar.height / 2 / cr.height,
+      }, W / H);
+      updateLife(dt, time);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, L.cols, L.rows, 0, gl.RED, gl.UNSIGNED_BYTE, L.bytes);
+      gl.uniform1f(U('uTime'), time);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+      const k = reduced ? 1 : 1 - Math.exp(-dt * T.wash.follow);
+      ws.x += (ws.tx - ws.x) * k; ws.y += (ws.ty - ws.y) * k;
+      ws.o += (ws.to - ws.o) * (reduced ? 1 : 1 - Math.exp(-dt * (ws.to > ws.o ? T.wash.fadeIn : T.wash.fadeOut)));
+      wash.style.transform = `translate3d(${ws.x}px, ${ws.y}px, 0)`;
+      wash.style.opacity = ws.o.toFixed(3);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>

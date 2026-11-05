@@ -29,6 +29,7 @@ const WARMUP_MS = 1800; // let the effect animate before capturing
 const WARMUP_OVERRIDES = {
   'starfall-particle-art': 6000, // all three models fully assembled
   'rgbjoy-fluid-field': 450,     // opening swirl before it damps out
+  'serval-life-coat': 600,       // let the default card's spots glow in
 };
 
 const MIME = {
