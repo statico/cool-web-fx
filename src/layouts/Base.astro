@@ -9,9 +9,11 @@ interface Props {
   mdPath?: string;
   /** JSON-LD graph nodes to emit for this page. */
   jsonLd?: unknown[];
+  /** Let the page use the full viewport width (gallery index). */
+  wide?: boolean;
 }
 
-const { title, description, mdPath, jsonLd = [] } = Astro.props as Props;
+const { title, description, mdPath, jsonLd = [], wide = false } = Astro.props as Props;
 const base = import.meta.env.BASE_URL; // respects astro.config base
 const pageTitle = title ? `${title} — ${SITE_NAME}` : SITE_TAGLINE;
 const pageDescription = description || SITE_DESCRIPTION;
@@ -53,7 +55,7 @@ const REPO_URL = 'https://github.com/statico/cool-web-fx';
       />
     )}
   </head>
-  <body>
+  <body class:list={{ wide }}>
     <header class="site-header">
       <div class="wrap">
         <div class="brand">
@@ -61,7 +63,7 @@ const REPO_URL = 'https://github.com/statico/cool-web-fx';
           <h1><a href={base}>Cool web interaction effects that Ian likes</a></h1>
         </div>
         <a class="cc-badge" href={CC_URL} target="_blank" rel="noopener">
-          <span class="dot"></span> Generated with Claude Code
+          <span class="dot"></span> <span class="cc-long">Generated with</span> Claude Code
         </a>
       </div>
     </header>

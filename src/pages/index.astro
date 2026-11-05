@@ -49,65 +49,66 @@ const jsonLd = [
   },
 ];
 ---
-<Base mdPath="/index.md" jsonLd={jsonLd}>
-  <section class="intro">
-    <p class="lede">
-      A growing gallery of web interaction effects I think are cool — each one
-      recreated from scratch as copy-pasteable HTML/CSS/JS.
-    </p>
-    <p>
-      Every demo is a single self-contained file you can lift straight into your
-      own page. The full code is embedded in each page (no build step, no API) so
-      it's easy for humans and LLMs to read. Each effect credits where I first saw
-      it. Inspired by <a href="https://reactbits.dev" target="_blank" rel="noopener">reactbits.dev</a>.
-    </p>
-  </section>
+<Base mdPath="/index.md" jsonLd={jsonLd} wide>
+  <div class="home">
+    <aside class="home-side">
+      <p class="lede">
+        Web interaction effects I think are cool, each recreated from scratch as
+        one copy-pasteable HTML file.
+      </p>
+      <p class="count">{demos.length} effects. Each one credits the site where I first saw it.</p>
 
-  <section class="intro">
-    <h2>How to use an effect</h2>
-    <p>
-      Open any effect below, hit <strong>Copy code</strong>, and paste the whole
-      file into your own project — it is a complete HTML document with the CSS and
-      JavaScript inline. Nothing here needs a bundler, a package install, or an API
-      key. Only <code>resend-cube</code> loads an external library (Three.js, pinned
-      via an import map); every other effect makes no network calls at all.
-    </p>
-  </section>
+      <details>
+        <summary>How to use an effect</summary>
+        <p>
+          Open an effect, hit <strong>Copy code</strong>, and paste the whole file
+          into your project. It is a complete HTML document with the CSS and
+          JavaScript inline: no bundler, no package install, no API key.
+        </p>
+        <p>
+          Only <code>resend-cube</code> loads an external library (Three.js, pinned
+          via an import map). Every other effect makes no network calls.
+        </p>
+      </details>
 
-  <section class="intro">
-    <h2>For coding agents</h2>
-    <p>
-      If you are an LLM or coding agent, start with
-      <a href={`${base}skill.md`}>skill.md</a> or
-      <a href={`${base}AGENTS.md`}>AGENTS.md</a> — they explain how to grab an
-      effect and what attribution to keep. Machine-readable indexes live at
-      <a href={`${base}llms.txt`}>llms.txt</a>,
-      <a href={`${base}sitemap.md`}>sitemap.md</a> and
-      <a href={`${base}sitemap.xml`}>sitemap.xml</a>, and every page has a Markdown
-      mirror at the same path with a <code>.md</code> suffix. Unfamiliar terms are
-      defined in the <a href={`${base}glossary`}>glossary</a>.
-    </p>
-  </section>
+      <details>
+        <summary>For coding agents</summary>
+        <p>
+          Start with <a href={`${base}skill.md`}>skill.md</a> or <a href={`${base}AGENTS.md`}>AGENTS.md</a>. They explain how to grab an
+          effect and what attribution to keep.
+        </p>
+        <p>
+          Indexes: <a href={`${base}llms.txt`}>llms.txt</a>, <a href={`${base}sitemap.md`}>sitemap.md</a>, <a href={`${base}sitemap.xml`}>sitemap.xml</a>. Every page has a Markdown
+          mirror at the same path with a <code>.md</code> suffix.
+        </p>
+      </details>
 
-  <h2 class="gallery-heading">All effects</h2>
-  <div class="gallery">
-    {demos.map((d) => (
-      <a class="card" href={`${base}demos/${d.slug}`}>
-        <img
-          class="thumb"
-          src={`${base}thumbs/${d.slug}.png`}
-          alt={`${d.title} preview`}
-          loading="lazy"
-          width="320"
-          height="200"
-          onerror="this.classList.add('thumb-fallback');this.removeAttribute('src');this.alt='preview';"
-        />
-        <div class="body">
-          <div class="title">{d.title}</div>
-          <div class="src">{d.sourceName}</div>
-          <div class="blurb">{d.blurb}</div>
-        </div>
-      </a>
-    ))}
+      <details>
+        <summary>About this gallery</summary>
+        <p>
+          The full code is printed on each demo page, so humans and LLMs can read
+          it without running anything. Terms are defined in the <a href={`${base}glossary`}>glossary</a>. Inspired by <a href="https://reactbits.dev" target="_blank" rel="noopener">reactbits.dev</a>.
+        </p>
+      </details>
+    </aside>
+
+    <section class="gallery" aria-label="Effects">
+      {demos.map((d) => (
+        <a class="card" href={`${base}demos/${d.slug}`}>
+          <img
+            class="thumb"
+            src={`${base}thumbs/${d.slug}.png`}
+            alt=""
+            loading="lazy"
+            width="1200"
+            height="750"
+            onerror="this.classList.add('thumb-fallback');this.removeAttribute('src');"
+          />
+          <span class="title">{d.title}</span>
+          <span class="src">{d.sourceName}</span>
+          <span class="blurb">{d.blurb}</span>
+        </a>
+      ))}
+    </section>
   </div>
 </Base>
