@@ -1,0 +1,460 @@
+<!doctype html>
+<!--
+  rgbjoy — chroma fluid vector field
+  ─────────────────────────────────────────────────────────────────────────────
+  Port of the full-page background on https://rgbjoy.com/. The site runs a
+  small GPU fluid simulation with gpu-io (MIT, Amanda Ghassaei) and draws the
+  velocity field as a grid of short line segments, one every 14px.
+
+  Simulation (velocity grid = 1/8 of the viewport, RG float, linear filter):
+    advect → wall → divergence → 3 Jacobi pressure iterations →
+    gradient subtraction → wall → damping (×0.985, sleep below 0.015)
+
+  Input: every mouse move stamps a 30px round-capped segment of velocity
+  (falloff 1 − r², ×2, magnitude capped at 30) along the pointer's path. On
+  load, five curved strokes swirl out of the centre. On touch devices, a
+  random curved stroke fires every 1.7–3.9s instead.
+
+  Colour: each line is shaded from its own velocity. At rest it is grey
+  (0.35). As it moves it blends into an Inigo Quilez cosine palette indexed
+  by heading + time·0.06 + energy·0.25, ×1.25 gain. So a swirl reads as a
+  rainbow keyed to flow direction, and the grid fades back to grey dots as
+  the fluid settles.
+
+  The shaders are the site's own, verbatim. The small gpu-io pieces they
+  depend on (fullscreen pass, round-capped segment stamp, vector-field line
+  draw, ping-pong buffers) are re-implemented in plain WebGL2 so the file has
+  no dependencies. Dark theme only (the site also has light: rest 0.68, gain
+  0.72, white clear).
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>rgbjoy — Chroma Fluid Field</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles.">
+  <link rel="canonical" href="https://fx.statico.io/effects/rgbjoy-fluid-field.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/rgbjoy-fluid-field.md" title="Chroma Fluid Field (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Chroma Fluid Field">
+  <meta property="og:description" content="A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles.">
+  <meta property="og:url" content="https://fx.statico.io/effects/rgbjoy-fluid-field.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Chroma Fluid Field">
+  <meta name="twitter:description" content="A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/rgbjoy-fluid-field.html#effect","name":"Chroma Fluid Field","url":"https://fx.statico.io/effects/rgbjoy-fluid-field.html","abstract":"A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles.","description":"A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://rgbjoy.com/","mainEntityOfPage":"https://fx.statico.io/demos/rgbjoy-fluid-field","dateModified":"2026-11-05T04:49:31.999Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/rgbjoy-fluid-field.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Chroma Fluid Field","item":"https://fx.statico.io/demos/rgbjoy-fluid-field"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/rgbjoy-fluid-field.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; background: #000; color: #fff; overflow: hidden; }
+    #fluid { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    #fluid canvas { display: block; width: 100%; height: 100%; }
+    .copy {
+      position: relative; z-index: 1; padding: 64px 32px;
+      font: 16px/1.55 ui-monospace, "Geist Mono", "IBM Plex Mono", Menlo, monospace;
+      color: rgba(255, 255, 255, .72); max-width: 520px;
+    }
+    .copy h1 { display: flex; align-items: center; gap: 12px; font-size: 48px; font-weight: 400; font-style: italic; color: #fff; margin-bottom: 20px; font-family: Georgia, serif; }
+    .bars { display: inline-flex; gap: 3px; }
+    .bars i { width: 11px; height: 34px; }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Chroma Fluid Field</h1>
+    <p>A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles.</p>
+    <h2>How it works</h2>
+    <p>This ports the page background on rgbjoy.com. The site runs a small Navier–Stokes fluid solver with [gpu-io](https://github.com/amandaghassaei/gpu-io) (MIT, Amanda Ghassaei). The fragment shaders here are the site's own, verbatim.</p>
+    <p>The velocity field lives in a two-channel float texture at 1/8 of the viewport, with linear filtering. Each frame runs advect → wall (zero the normal velocity at the edges) → divergence → 3 Jacobi pressure iterations (pressure is kept between frames as a warm start) → gradient subtraction → wall → damping (×0.985, with anything under 0.015 snapped to zero so the field fully settles).</p>
+    <p>Every mouse move stamps a 30px round-capped segment along the pointer's path. Inside it, the pointer delta is added with a 1 − r² falloff ×2, and the result is capped at 30. On load, five curved strokes swirl out of the centre. On touch or no-hover devices, a random curved stroke (8–14 short segments with a jittered heading) fires every 1.7–3.9s instead.</p>
+    <p>The field is not drawn as a picture. It is drawn as GL lines: one per 14px grid point, from the point to the point plus velocity ×2.5, with the line position computed in the vertex shader from gl_VertexID. The fragment shader colours each line from the velocity under it. At rest it is grey (0.35). As energy (|v|/6) rises it blends via smoothstep into an [Inigo Quilez cosine palette](https://iquilezles.org/articles/palettes/) indexed by heading + time·0.06 + energy·0.25, with a gain of 1.25. So a swirl reads as a ring of hues keyed to direction, and the colour slowly cycles over time.</p>
+    <p>The small parts of gpu-io the shaders depend on are re-implemented in about 100 lines of plain WebGL2: fullscreen passes, ping-pong buffers, the round-capped segment stamp (a triangle fan of 18 cap segments, which copies the layer first so the rest of the field is kept), and the vertex-ID line draw. The textures use half floats (RG16F) so linear filtering works without extra extensions. Only the dark theme is ported (the site's light theme uses rest 0.68, gain 0.72, on white). Self-contained: no external scripts, fonts, or images.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/rgbjoy-fluid-field.md">https://fx.statico.io/effects/rgbjoy-fluid-field.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/rgbjoy-fluid-field">https://fx.statico.io/demos/rgbjoy-fluid-field</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on rgbjoy (https://rgbjoy.com/) — credit to Tom Fletcher (rgbjoy). This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <div id="fluid" aria-hidden="true"></div>
+  <div class="copy">
+    <h1><span class="bars"><i style="background:#f00"></i><i style="background:#0f0"></i><i style="background:#00f"></i></span>rgbjoy</h1>
+    <p>Move your mouse. The fluid underneath the page stirs, and every grid line takes its colour from the direction it flows.</p>
+  </div>
+
+  <script>
+  (() => {
+    // Constants from the site.
+    const GRID = 8;            // velocity cells are 8×8 px
+    const TOUCH_GAIN = 2, MAX_VEL = 30;
+    const JACOBI = 3, DAMPING = 0.985, SLEEP = 0.015;
+    const REST = 0.35, GAIN = 1.25;               // dark theme
+    const VEC_SPACING = 14, VEC_SCALE = 2.5;
+    const CAP_SEGMENTS = 18;                      // gpu-io default circle fan
+
+    const host = document.getElementById('fluid');
+    const canvas = document.createElement('canvas');
+    host.appendChild(canvas);
+    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    if (!gl || !(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float'))) return;
+
+    const HEAD = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n';
+
+    // ── gpu-io vertex shaders ────────────────────────────────────────────────
+    const VS_QUAD = HEAD + `
+      in vec2 a_position;
+      out vec2 v_uv;
+      void main() { v_uv = 0.5 * (a_position + 1.0); gl_Position = vec4(a_position, 0, 1); }`;
+
+    const VS_SEGMENT = HEAD + `
+      in vec2 a_position;
+      uniform float u_gpuio_halfThickness;
+      uniform vec2 u_gpuio_scale;
+      uniform float u_gpuio_length;
+      uniform float u_gpuio_rotation;
+      uniform vec2 u_gpuio_translation;
+      out vec2 v_uv_local;
+      out vec2 v_uv;
+      mat2 rotate2d(float _angle){ return mat2(cos(_angle), -sin(_angle), sin(_angle), cos(_angle)); }
+      void main() {
+        v_uv_local = 0.5 * (a_position + 1.0);
+        vec2 position = a_position * u_gpuio_halfThickness;
+        float signX = sign(position.x);
+        position.x += signX * u_gpuio_length / 2.0;
+        v_uv_local.x = (signX + 1.0) / 2.0;
+        position = u_gpuio_scale * (rotate2d(-u_gpuio_rotation) * position) + u_gpuio_translation;
+        v_uv = 0.5 * (position + 1.0);
+        gl_Position = vec4(position, 0, 1);
+      }`;
+
+    const VS_VECTORS = HEAD + `
+      uniform sampler2D u_gpuio_vectors;
+      uniform vec2 u_gpuio_dimensions;
+      uniform vec2 u_gpuio_scale;
+      out vec2 v_uv;
+      vec2 uvFromIndex(const int index, const vec2 dimensions) {
+        int width = int(dimensions.x);
+        int y = index / width;
+        int x = index - y * width;
+        return vec2(float(x) + 0.5, float(y) + 0.5) / dimensions;
+      }
+      void main() {
+        int index = gl_VertexID / 2;
+        v_uv = uvFromIndex(index, u_gpuio_dimensions);
+        v_uv += float(gl_VertexID - 2 * index) * texture(u_gpuio_vectors, v_uv).xy * u_gpuio_scale;
+        gl_Position = vec4(v_uv * 2.0 - 1.0, 0, 1);
+      }`;
+
+    // ── rgbjoy fragment shaders (verbatim) ───────────────────────────────────
+    const FS = {
+      copy: `in vec2 v_uv; uniform sampler2D u_state; out vec4 out_v; void main() { out_v = texture(u_state, v_uv); }`,
+      advection: `
+        in vec2 v_uv;
+        uniform sampler2D u_state;
+        uniform sampler2D u_velocity;
+        uniform vec2 u_dimensions;
+        out vec2 out_state;
+        void main() {
+          out_state = texture(u_state, v_uv - texture(u_velocity, v_uv).xy / u_dimensions).xy;
+        }`,
+      divergence2D: `
+        in vec2 v_uv;
+        uniform sampler2D u_vectorField;
+        uniform vec2 u_pxSize;
+        out float out_divergence;
+        void main() {
+          float n = texture(u_vectorField, v_uv + vec2(0, u_pxSize.y)).y;
+          float s = texture(u_vectorField, v_uv - vec2(0, u_pxSize.y)).y;
+          float e = texture(u_vectorField, v_uv + vec2(u_pxSize.x, 0)).x;
+          float w = texture(u_vectorField, v_uv - vec2(u_pxSize.x, 0)).x;
+          out_divergence = 0.5 * (e - w + n - s);
+        }`,
+      jacobi: `
+        in vec2 v_uv;
+        uniform float u_alpha;
+        uniform float u_beta;
+        uniform vec2 u_pxSize;
+        uniform sampler2D u_previousState;
+        uniform sampler2D u_divergence;
+        out float out_result;
+        void main() {
+          float n = texture(u_previousState, v_uv + vec2(0, u_pxSize.y)).r;
+          float s = texture(u_previousState, v_uv - vec2(0, u_pxSize.y)).r;
+          float e = texture(u_previousState, v_uv + vec2(u_pxSize.x, 0)).r;
+          float w = texture(u_previousState, v_uv - vec2(u_pxSize.x, 0)).r;
+          float d = texture(u_divergence, v_uv).r;
+          out_result = (n + s + e + w + u_alpha * d) * u_beta;
+        }`,
+      gradientSubtraction: `
+        in vec2 v_uv;
+        uniform vec2 u_pxSize;
+        uniform sampler2D u_scalarField;
+        uniform sampler2D u_vectorField;
+        out vec2 out_result;
+        void main() {
+          float n = texture(u_scalarField, v_uv + vec2(0, u_pxSize.y)).r;
+          float s = texture(u_scalarField, v_uv - vec2(0, u_pxSize.y)).r;
+          float e = texture(u_scalarField, v_uv + vec2(u_pxSize.x, 0)).r;
+          float w = texture(u_scalarField, v_uv - vec2(u_pxSize.x, 0)).r;
+          out_result = texture(u_vectorField, v_uv).xy - 0.5 * vec2(e - w, n - s);
+        }`,
+      touch: `
+        in vec2 v_uv;
+        in vec2 v_uv_local;
+        uniform sampler2D u_velocity;
+        uniform vec2 u_vector;
+        out vec2 out_velocity;
+        void main() {
+          vec2 radialVec = (v_uv_local * 2.0 - 1.0);
+          float radiusSq = dot(radialVec, radialVec);
+          vec2 velocity = texture(u_velocity, v_uv).xy + (1.0 - radiusSq) * u_vector * ${TOUCH_GAIN.toFixed(1)};
+          float velocityMag = length(velocity);
+          out_velocity = velocity / velocityMag * min(velocityMag, ${MAX_VEL.toFixed(1)});
+        }`,
+      damping: `
+        in vec2 v_uv;
+        uniform sampler2D u_velocity;
+        uniform float u_damping;
+        uniform float u_sleep;
+        out vec2 out_velocity;
+        void main() {
+          vec2 velocity = texture(u_velocity, v_uv).xy * u_damping;
+          if (length(velocity) < u_sleep) velocity = vec2(0.0);
+          out_velocity = velocity;
+        }`,
+      wall: `
+        in vec2 v_uv;
+        uniform sampler2D u_velocity;
+        uniform vec2 u_pxSize;
+        out vec2 out_velocity;
+        void main() {
+          vec2 velocity = texture(u_velocity, v_uv).xy;
+          if (v_uv.x < u_pxSize.x || v_uv.x > 1.0 - u_pxSize.x) velocity.x = 0.0;
+          if (v_uv.y < u_pxSize.y || v_uv.y > 1.0 - u_pxSize.y) velocity.y = 0.0;
+          out_velocity = velocity;
+        }`,
+      chroma: `
+        in vec2 v_uv;
+        uniform sampler2D u_velocity;
+        uniform float u_time;
+        uniform float u_rest;
+        uniform float u_gain;
+        out vec4 out_color;
+        // Inigo Quilez cosine palette — https://iquilezles.org/articles/palettes/
+        vec3 cosinePalette(float t) {
+          return clamp(vec3(0.56) + vec3(0.44) * cos(6.28318 * (t + vec3(0.0, 0.33, 0.67))), 0.0, 1.0);
+        }
+        void main() {
+          vec2 velocity = texture(u_velocity, v_uv).xy;
+          float energy = clamp(length(velocity) / 6.0, 0.0, 1.0);
+          float heading = atan(velocity.y, velocity.x) / 6.28318;
+          float t = heading * 1.00 + u_time * 0.06 + energy * 0.25;
+          vec3 color = mix(vec3(u_rest), cosinePalette(t) * u_gain, smoothstep(0.0, 1.0, energy));
+          out_color = vec4(color, 1.0);
+        }`,
+    };
+
+    // ── minimal WebGL2 plumbing ──────────────────────────────────────────────
+    function compile(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    function program(vs, fsBody, uniforms) {
+      const p = gl.createProgram();
+      gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+      gl.attachShader(p, compile(gl.FRAGMENT_SHADER, HEAD + fsBody));
+      gl.bindAttribLocation(p, 0, 'a_position');
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      const loc = {};
+      const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+      for (let i = 0; i < n; i++) { const { name } = gl.getActiveUniform(p, i); loc[name] = gl.getUniformLocation(p, name); }
+      const prog = { p, loc, set(u) {
+        gl.useProgram(p);
+        for (const k in u) {
+          const v = u[k], l = loc[k];
+          if (l == null) continue;
+          if (Array.isArray(v)) gl.uniform2fv(l, v);
+          else gl.uniform1f(l, v);
+        }
+        return prog;
+      } };
+      return prog;
+    }
+    // Bind sampler uniforms to texture units 0, 1, … in order.
+    const samplers = (p, names) => { gl.useProgram(p.p); names.forEach((n, i) => gl.uniform1i(p.loc[n], i)); return p; };
+
+    const P = {
+      copy:     samplers(program(VS_QUAD, FS.copy), ['u_state']),
+      advection: samplers(program(VS_QUAD, FS.advection), ['u_state', 'u_velocity']),
+      divergence: samplers(program(VS_QUAD, FS.divergence2D), ['u_vectorField']),
+      jacobi:   samplers(program(VS_QUAD, FS.jacobi), ['u_previousState', 'u_divergence']),
+      gradient: samplers(program(VS_QUAD, FS.gradientSubtraction), ['u_scalarField', 'u_vectorField']),
+      damping:  samplers(program(VS_QUAD, FS.damping), ['u_velocity']),
+      wall:     samplers(program(VS_QUAD, FS.wall), ['u_velocity']),
+      touch:    samplers(program(VS_SEGMENT, FS.touch), ['u_velocity']),
+      chroma:   samplers(program(VS_VECTORS, FS.chroma), []),  // both samplers read unit 0
+    };
+    P.jacobi.set({ u_alpha: -1, u_beta: 0.25 });
+    P.damping.set({ u_damping: DAMPING, u_sleep: SLEEP });
+    P.chroma.set({ u_rest: REST, u_gain: GAIN });
+
+    const vbo = (data) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW); return b; };
+    const quadBuf = vbo([-1, -1, 1, -1, -1, 1, 1, 1]);
+    const fan = [0, 0];
+    for (let i = 0; i < CAP_SEGMENTS; i++) fan.push(Math.cos((2 * Math.PI * i) / CAP_SEGMENTS), Math.sin((2 * Math.PI * i) / CAP_SEGMENTS));
+    fan.push(1, 0);
+    const fanBuf = vbo(fan);
+    gl.enableVertexAttribArray(0);
+    const useBuf = (b) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); };
+
+    function layer(w, h, comps, linear) {
+      const fmt = comps === 2 ? [gl.RG16F, gl.RG] : [gl.R16F, gl.RED];
+      const tex = gl.createTexture(), fb = gl.createFramebuffer();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, fmt[0], w, h, 0, fmt[1], gl.HALF_FLOAT, null);
+      const f = linear ? gl.LINEAR : gl.NEAREST;
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+      return { tex, fb, w, h };
+    }
+    // Ping-pong pair: read .a, write .b, then swap.
+    const pingpong = (w, h, comps, linear) => {
+      const pp = { a: layer(w, h, comps, linear), b: layer(w, h, comps, linear), swap() { [pp.a, pp.b] = [pp.b, pp.a]; } };
+      return pp;
+    };
+    const bindInputs = (...texs) => texs.forEach((t, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t.tex); });
+    const target = (l) => { gl.bindFramebuffer(gl.FRAMEBUFFER, l.fb); gl.viewport(0, 0, l.w, l.h); };
+    const fullscreen = () => { useBuf(quadBuf); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
+
+    let W = 0, H = 0, vel, div, pres;
+    function resize() {
+      W = host.clientWidth; H = host.clientHeight;
+      if (!W || !H) return;
+      canvas.width = W; canvas.height = H;
+      const gw = Math.ceil(W / GRID), gh = Math.ceil(H / GRID), px = [1 / gw, 1 / gh];
+      for (const l of [vel?.a, vel?.b, div, pres?.a, pres?.b]) if (l) { gl.deleteTexture(l.tex); gl.deleteFramebuffer(l.fb); }
+      vel = pingpong(gw, gh, 2, true);
+      div = layer(gw, gh, 1, false);
+      pres = pingpong(gw, gh, 1, false);
+      P.advection.set({ u_dimensions: [W, H] });
+      for (const p of [P.divergence, P.jacobi, P.gradient, P.wall]) p.set({ u_pxSize: px });
+    }
+
+    // Velocity pass in place: read current, write the other buffer, swap.
+    const velPass = (prog) => { prog.set({}); target(vel.b); bindInputs(vel.a); fullscreen(); vel.swap(); };
+
+    // gpu-io stepSegment with endCaps, writing back into the velocity layer.
+    // Positions are in CSS px with y up. Like gpu-io, copy the whole layer
+    // first so cells outside the stamp keep their values.
+    function stepSegment(p1, p2, thickness, vector) {
+      P.copy.set({}); target(vel.b); bindInputs(vel.a); fullscreen();
+      const dx = p1[0] - p2[0], dy = p1[1] - p2[1];
+      P.touch.set({
+        u_vector: vector,
+        u_gpuio_halfThickness: thickness / 2,
+        u_gpuio_scale: [2 / W, 2 / H],
+        u_gpuio_rotation: Math.atan2(dy, dx),
+        u_gpuio_translation: [(p1[0] + p2[0]) / W - 1, (p1[1] + p2[1]) / H - 1],
+        u_gpuio_length: Math.hypot(dx, dy),
+      });
+      useBuf(fanBuf);
+      gl.drawArrays(gl.TRIANGLE_FAN, 0, CAP_SEGMENTS + 2);
+      vel.swap();
+    }
+
+    // A curved brush stroke made of short segments (screen coords, y down).
+    function stroke(s) {
+      const step = s.length / s.segments;
+      let { x, y, heading } = s;
+      for (let i = 0; i < s.segments; i++) {
+        heading += s.sweep / s.segments + (Math.random() - 0.5) * 0.18;
+        const nx = x + Math.cos(heading) * step, ny = y + Math.sin(heading) * step;
+        stepSegment([nx, H - ny], [x, H - y], s.thickness, [(nx - x) * s.strength, -(ny - y) * s.strength]);
+        x = nx; y = ny;
+      }
+    }
+
+    function frame() {
+      requestAnimationFrame(frame);
+      if (!vel) return;
+      P.advection.set({}); target(vel.b); bindInputs(vel.a, vel.a); fullscreen(); vel.swap();
+      velPass(P.wall);
+      P.divergence.set({}); target(div); bindInputs(vel.a); fullscreen();
+      for (let i = 0; i < JACOBI; i++) { P.jacobi.set({}); target(pres.b); bindInputs(pres.a, div); fullscreen(); pres.swap(); }
+      P.gradient.set({}); target(vel.b); bindInputs(pres.a, vel.a); fullscreen(); vel.swap();
+      velPass(P.wall);
+      velPass(P.damping);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, W, H);
+      gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      const dims = [Math.floor(W / VEC_SPACING), Math.floor(H / VEC_SPACING)];
+      P.chroma.set({ u_time: performance.now() / 1000, u_gpuio_scale: [VEC_SCALE / W, VEC_SCALE / H], u_gpuio_dimensions: dims });
+      bindInputs(vel.a);
+      gl.disableVertexAttribArray(0);  // vertices come from gl_VertexID
+      gl.drawArrays(gl.LINES, 0, 2 * dims[0] * dims[1]);
+      gl.enableVertexAttribArray(0);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(frame);
+
+    // Opening swirl: five strokes curling out of the centre.
+    setTimeout(() => {
+      const u = Math.min(W, H), dir = Math.random() < 0.5 ? -1 : 1;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        stroke({
+          x: W / 2 + Math.cos(a) * u * 0.05, y: H / 2 + Math.sin(a) * u * 0.05,
+          heading: a + 0.9 * dir, length: u * 0.24, sweep: 0.9 * dir,
+          segments: 8, thickness: 34, strength: 1.4,
+        });
+      }
+    }, 120);
+
+    // Mouse: stamp the path between successive pointer positions.
+    const last = {};
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse' || !vel) return;
+      const r = host.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      const prev = last[e.pointerId];
+      last[e.pointerId] = [x, y];
+      if (!prev || (prev[0] === x && prev[1] === y)) return;
+      stepSegment([x, H - y], [prev[0], H - prev[1]], 30, [x - prev[0], -(y - prev[1])]);
+    });
+
+    // Touch / no-hover devices: a random curved stroke every 1.7–3.9s.
+    const coarse = window.matchMedia('(pointer: coarse), (hover: none)');
+    let timer = 0;
+    const ambient = () => {
+      if (!coarse.matches) return;
+      stroke({
+        x: Math.random() * W, y: Math.random() * H, heading: Math.random() * Math.PI * 2,
+        length: 112 + Math.random() * 184,
+        sweep: (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 1.1),
+        segments: 8 + Math.floor(Math.random() * 7), thickness: 26 + Math.random() * 12, strength: 1,
+      });
+      timer = setTimeout(ambient, 1680 + Math.random() * 2240);
+    };
+    const restart = () => { clearTimeout(timer); ambient(); };
+    coarse.addEventListener('change', restart);
+    restart();
+  })();
+  </script>
+</body>
+</html>

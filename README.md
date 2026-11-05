@@ -32,6 +32,8 @@ independent recreation of the look. Credit always goes to the original site.
 | ASCII Cloud Banner | A coral ASCII-art field of concentric arcs shimmers behind the OpenClaw hero banner while a bright wave radiates outward along the arcs — monospace glyphs reading as horizontal wavy lines, behind a bold heading. | [OpenClaw](https://openclaw.ai/) |
 | Dithered Firefly Field | A Bayer-dithered glow rising from the bottom of the hero, broken into thousands of 2px dots that scatter away from the cursor, spring back home, and drift up off the top like fireflies. | [tester.army](https://tester.army/e2e) |
 | Terminal Star Field | A three-layer parallax star field of monospace glyphs scrolling right-to-left in a real in-browser terminal, drawn with ANSI escapes and xterm 256 colors, with live controls for glyph mode, star count, speed, and color saturation. | [statico's gist](https://gist.github.com/statico/6be620d98837c786bc4913cb060e85b9) |
+| Particle Assembly Art | Three cards where 3,000 drifting specks swirl into a turning DNA helix, molecule, and crystal lattice, then scatter back into dust. | [SpaceX Starfall](https://www.spacex.com/starfall) |
+| Chroma Fluid Field | A full-page GPU fluid sim drawn as tiny grid lines that turn rainbow by flow direction as your cursor stirs them. | [rgbjoy](https://rgbjoy.com/) |
 
 ## Develop
 

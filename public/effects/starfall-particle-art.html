@@ -1,0 +1,407 @@
+<!doctype html>
+<!--
+  SpaceX Starfall — "Who it's for" particle art
+  ─────────────────────────────────────────────────────────────────────────────
+  Port of the three card illustrations on https://www.spacex.com/starfall
+  (Angular directive `canvas[starfallParticleArt]`). Each card is a 2D canvas
+  holding exactly 3,000 white square specks. They start as drifting dust, then
+  ease (cubic in-out, with a 22% sideways swirl) into a slowly turning 3D
+  model, hold it, and dissolve back into a different dust layout:
+
+    biomedical — a double helix (2.2 turns, 24 rungs, one accent rung)
+    pharma     — a caffeine-like molecule: 24 atoms drawn as Fibonacci-sphere
+                 shells, single and double bonds drawn as dotted lines
+    materials  — a diamond-cubic lattice clipped to an octahedron, tetrahedral
+                 bonds between anchor atoms
+
+  Loop: 1.2s dust → 2.4s assemble → hold until 8.2s → 2.2s dissolve (10.4s).
+  Specks are matched to targets by angle around the centre, so the dust
+  sweeps into the shape instead of crossing over itself, and centre specks
+  arrive first (delay = 0.7·(1 − radius) + 0.3·random). Size and alpha come
+  from perspective depth. Cards are staggered by 0.4s each, the canvas only
+  animates while on screen, and prefers-reduced-motion shows the finished
+  model, still. Logic, constants, and seeds are the original's, de-minified.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpaceX Starfall — Particle Art</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust.">
+  <link rel="canonical" href="https://fx.statico.io/effects/starfall-particle-art.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/starfall-particle-art.md" title="Particle Assembly Art (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Particle Assembly Art">
+  <meta property="og:description" content="Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust.">
+  <meta property="og:url" content="https://fx.statico.io/effects/starfall-particle-art.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Particle Assembly Art">
+  <meta name="twitter:description" content="Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/starfall-particle-art.html#effect","name":"Particle Assembly Art","url":"https://fx.statico.io/effects/starfall-particle-art.html","abstract":"Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust.","description":"Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://www.spacex.com/starfall","mainEntityOfPage":"https://fx.statico.io/demos/starfall-particle-art","dateModified":"2026-11-05T04:49:31.999Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/starfall-particle-art.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Particle Assembly Art","item":"https://fx.statico.io/demos/starfall-particle-art"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/starfall-particle-art.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: #000; color: #fff; min-height: 100%; }
+    body {
+      font-family: "D-DIN", "DIN Alternate", "Barlow", "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: clamp(32px, 5vw, 60px);
+    }
+    h2 {
+      font-weight: 400;
+      font-size: clamp(2.15rem, 3.85vw, 3.5rem);
+      line-height: 1.02;
+      margin-bottom: clamp(32px, 5vw, 64px);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 36px;
+    }
+    .art { position: relative; aspect-ratio: 368 / 245; }
+    .art canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    h3 { font-weight: 400; font-size: 22px; margin: 24px 0 14px; }
+    p { font-size: 15px; line-height: 1.6; color: rgba(255, 255, 255, .82); }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Particle Assembly Art</h1>
+    <p>Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust.</p>
+    <h2>How it works</h2>
+    <p>This ports the three illustrations in the "Who it's for" section of spacex.com/starfall. On the live site each one is a 2D canvas driven by an Angular directive (canvas[starfallParticleArt]) that ships as plain client-side JavaScript. The demo is that code, de-minified, with the same constants and seeds.</p>
+    <p>Each model is built as a list of 3D points with weights. The helix is two strands sampled at even arc length over 2.2 turns, plus 24 dotted rungs (the middle one is an accent). The molecule is 24 atoms, each a core point plus a Fibonacci-sphere shell, joined by dotted single and double bonds. The lattice is diamond-cubic sites clipped to an octahedron (|x|+|y|+|z| ≤ 2.4), each a small ring of points, with dotted tetrahedral bonds. The list is scaled to a fixed radius and resampled to exactly 3,000 targets. Extra slots get weight 0, and those specks stay as dust and fade out.</p>
+    <p>The specks rest in one of two seeded dust layouts that drift on slow sines. Specks are paired with targets by angle around the centre, so the dust sweeps round into the shape instead of crossing over itself. Each speck also gets a delay that is shorter near the centre, so the core fills in first. A 10.4s loop holds dust for 1.2s, assembles over 2.4s (cubic ease in-out, plus a sideways swirl of sin(πe)·0.22 that makes each speck curve in), holds the model until 8.2s, then dissolves over 2.2s into the *other* dust layout. The model turns the whole time and is projected with simple perspective. Speck size and alpha come from depth, so the near side reads brighter and larger. Every speck is a fillRect in rgba(255,255,255,a), with no sprites or WebGL.</p>
+    <p>The three cards start 0.4s apart. Each canvas animates only while it is on screen (IntersectionObserver), and its clock pauses while hidden. Under prefers-reduced-motion it draws the finished model once and stops. Self-contained: no external scripts, fonts, or images.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/starfall-particle-art.md">https://fx.statico.io/effects/starfall-particle-art.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/starfall-particle-art">https://fx.statico.io/demos/starfall-particle-art</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on SpaceX Starfall (https://www.spacex.com/starfall) — credit to SpaceX. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <h2>Who it's for</h2>
+  <div class="grid">
+    <article>
+      <div class="art"><canvas data-art="biomedical" data-offset="0.8" aria-hidden="true"></canvas></div>
+      <h3>Biomedical Research</h3>
+      <p>Without gravity, biology accelerates and reorganizes. Build superior implants and layered biomaterials, advance oncology and stem-cell discovery, and grow organoids and replacement tissue.</p>
+    </article>
+    <article>
+      <div class="art"><canvas data-art="pharma" data-offset="0.4" aria-hidden="true"></canvas></div>
+      <h3>Pharmaceutical Discovery</h3>
+      <p>Gravity-driven convection and sedimentation degrades crystal quality on Earth. In microgravity, proteins and small-molecule drugs form smaller, more uniform crystals.</p>
+    </article>
+    <article>
+      <div class="art"><canvas data-art="materials" data-offset="0" aria-hidden="true"></canvas></div>
+      <h3>Materials Science</h3>
+      <p>On Earth, buoyancy-driven convection and sedimentation impede crystal growth. Microgravity and the vacuum of space allow production of next-generation materials.</p>
+    </article>
+  </div>
+
+  <script>
+  (() => {
+    const COUNT = 3000;          // specks per canvas
+    const DUST_HOLD = 1.2;       // seconds of dust before assembling
+    const CYCLE = 8.2 + 2.2;     // full loop length
+    const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const clamp01 = (t) => Math.min(1, Math.max(0, t));
+
+    // Points every `step` along a 3D segment (inclusive of both ends).
+    function dottedLine(a, b, step, extra) {
+      const len = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+      const n = Math.max(1, Math.round(len / step));
+      const out = [];
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, ...extra });
+      }
+      return out;
+    }
+
+    // Two drifting dust layouts the specks rest in between shapes.
+    const REST = {
+      dust:  (p, t) => ({ x: p.ux + 0.022 * Math.sin(0.35 * t + p.phase),  y: p.uy + 0.03 * Math.cos(0.3 * t + 1.3 * p.phase),   depth: p.ud }),
+      dust2: (p, t) => ({ x: p.vx + 0.022 * Math.sin(0.33 * t + p.phase2), y: p.vy + 0.03 * Math.cos(0.31 * t + 1.3 * p.phase2), depth: p.vd }),
+    };
+
+    const rotX = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return { x: p.x, y: p.y * c - p.z * s, z: p.y * s + p.z * c }; };
+    const rotY = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return { x: p.x * c + p.z * s, y: p.y, z: -p.x * s + p.z * c }; };
+    const rotZ = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return { x: p.x * c - p.y * s, y: p.x * s + p.y * c, z: p.z }; };
+
+    const ARTS = {
+      biomedical: {
+        build(step) {
+          const pts = [];
+          const strand = (u, phase) => {
+            const a = 2.2 * u * Math.PI * 2 + phase;
+            return { x: 2 * (u - 0.5), y: 0.34 * Math.cos(a), z: 0.34 * Math.sin(a) };
+          };
+          for (const phase of [0, Math.PI]) {
+            let prev = strand(0, phase), acc = 0;
+            pts.push({ ...prev, weight: 1.4 });
+            for (let i = 1; i <= 900; i++) {
+              const p = strand(i / 900, phase);
+              acc += Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z);
+              if (acc >= step) { pts.push({ ...p, weight: 1.4 }); acc = 0; }
+              prev = p;
+            }
+          }
+          for (let i = 0; i < 24; i++) {
+            const u = (i + 0.5) / 24, accent = i === 12;
+            pts.push(...dottedLine(strand(u, 0), strand(u, Math.PI), step, { weight: accent ? 1.4 : 1, accent }).slice(1, -1));
+          }
+          return pts;
+        },
+        seed: 11, fit: 1.44, rests: ['dust', 'dust2'],
+        spin: (t, p) => rotX(p, 0.25 * t),
+        tilt: -0.26,
+      },
+
+      pharma: {
+        build(step) {
+          const elems = 'CNCNCCCONCONCCHHHHHHHHHH';
+          const xyz = [
+            -3.22, -0.84, -0, -2.16, 0.12, 0, -2.3, 1.49, 0, -1.13, 2.1, 0,
+            -0.22, 1.08, 0, -0.82, -0.14, 0, -0.09, -1.36, 0, -0.64, -2.46,
+            0, 1.29, -1.17, -0, 1.95, 0.08, -0, 3.18, 0.15, 0, 1.15, 1.22,
+            0, 1.75, 2.55, -0, 2.15, -2.34, 0, -4.19, -0.32, -0, -3.14,
+            -1.46, -0.9, -3.14, -1.46, 0.9, -3.26, 1.98, 0, 2.84, 2.5, -0,
+            1.42, 3.09, 0.89, 1.42, 3.09, -0.89, 2.79, -2.31, -0.89, 2.79,
+            -2.31, 0.89, 1.58, -3.27, -0,
+          ];
+          const radius = { C: 0.2, N: 0.2, O: 0.2, H: 0.1 };
+          const shellN = { C: 22, N: 22, O: 22, H: 6 };
+          const shellW = { C: 0.9, N: 0.9, O: 0.9, H: 0.6 };
+          const coreW  = { C: 2.4, N: 2.4, O: 2.4, H: 1.2 };
+          const atom = (i) => ({ x: xyz[3 * i], y: xyz[3 * i + 1], z: xyz[3 * i + 2] });
+          const pts = [];
+          for (let i = 0; i < elems.length; i++) {
+            const el = elems[i], c = atom(i), r = 0.85 * radius[el], n = shellN[el], accent = el === 'O';
+            pts.push({ ...c, weight: coreW[el], accent });
+            for (let k = 0; k < n; k++) {           // Fibonacci sphere shell
+              const y = 1 - (2 * (k + 0.5)) / n, ring = Math.sqrt(1 - y * y), a = 2.39996 * k;
+              pts.push({ x: c.x + r * ring * Math.cos(a), y: c.y + r * y, z: c.z + r * ring * Math.sin(a), weight: shellW[el], accent });
+            }
+          }
+          const bonds = [
+            [0, 1, 1], [1, 2, 1], [2, 3, 2], [3, 4, 1], [4, 5, 2], [5, 6, 1], [6, 7, 2],
+            [6, 8, 1], [8, 9, 1], [9, 10, 2], [9, 11, 1], [11, 12, 1], [8, 13, 1], [5, 1, 1],
+            [11, 4, 1], [0, 14, 1], [0, 15, 1], [0, 16, 1], [2, 17, 1], [12, 18, 1],
+            [12, 19, 1], [12, 20, 1], [13, 21, 1], [13, 22, 1], [13, 23, 1],
+          ];
+          for (const [i, j, order] of bonds) {
+            const a = atom(i), b = atom(j);
+            const len = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+            const d = { x: (b.x - a.x) / len, y: (b.y - a.y) / len, z: (b.z - a.z) / len };
+            const w = elems[i] === 'H' || elems[j] === 'H' ? 0.6 : 1;
+            const ra = 0.9 * radius[elems[i]], rb = 0.9 * radius[elems[j]];
+            let n = { x: -d.y, y: d.x, z: 0 };
+            if (Math.hypot(n.x, n.y) < 0.1) n = { x: 0, y: -d.z, z: d.y };
+            const nl = Math.hypot(n.x, n.y, n.z);
+            n = { x: n.x / nl, y: n.y / nl, z: n.z / nl };
+            for (const off of order === 2 ? [-0.09, 0.09] : [0]) {
+              pts.push(...dottedLine(
+                { x: a.x + d.x * ra + n.x * off, y: a.y + d.y * ra + n.y * off, z: a.z + d.z * ra + n.z * off },
+                { x: b.x - d.x * rb + n.x * off, y: b.y - d.y * rb + n.y * off, z: b.z - d.z * rb + n.z * off },
+                0.5 * step, { weight: w }));
+            }
+          }
+          return pts;
+        },
+        seed: 23, fit: 1.32, rests: ['dust', 'dust2'],
+        spin: (t, p) => rotY(rotX(p, 0.15), 0.28 * Math.sin(0.48 * t)),
+        tilt: 0,
+      },
+
+      materials: {
+        build(step) {
+          const pts = [], sites = new Map();
+          const key = (x, y, z) => `${Math.round(8 * x)},${Math.round(8 * y)},${Math.round(8 * z)}`;
+          for (let i = -3; i <= 3; i++)
+            for (let j = -3; j <= 3; j++)
+              for (let k = -3; k <= 3; k++)
+                for (const [fx, fy, fz] of [[0, 0, 0], [0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]])
+                  for (const o of [0, 0.25]) {
+                    const x = i + fx + o, y = j + fy + o, z = k + fz + o;
+                    if (Math.abs(x) + Math.abs(y) + Math.abs(z) <= 2.4) sites.set(key(x, y, z), { x, y, z, anchor: o === 0 });
+                  }
+          sites.forEach((s) => {
+            const accent = s.x === 0 && s.y === 0 && s.z === 0;
+            pts.push({ x: s.x, y: s.y, z: s.z, weight: 2, accent });
+            for (let n = 0; n < 8; n++) {
+              const a = (n / 8) * Math.PI * 2;
+              pts.push({ x: s.x + 0.05 * Math.cos(a), y: s.y + 0.05 * Math.sin(a), z: s.z, weight: 0.8, accent });
+            }
+            if (s.anchor)
+              for (const [dx, dy, dz] of [[0.25, 0.25, 0.25], [0.25, -0.25, -0.25], [-0.25, 0.25, -0.25], [-0.25, -0.25, 0.25]]) {
+                const nb = sites.get(key(s.x + dx, s.y + dy, s.z + dz));
+                if (!nb) continue;
+                const g = 0.08 / 0.433;
+                pts.push(...dottedLine(
+                  { x: s.x + dx * g, y: s.y + dy * g, z: s.z + dz * g },
+                  { x: nb.x - dx * g, y: nb.y - dy * g, z: nb.z - dz * g },
+                  step, { weight: 1.1 }));
+              }
+          });
+          return pts;
+        },
+        seed: 37, fit: 1.14, rests: ['dust', 'dust2'],
+        spin: (t, p) => rotX(rotY(p, 0.11 * t + 0.5), 0.5),
+        tilt: 0,
+      },
+    };
+
+    // Seeded PRNG (splitmix-style), so every load lays the dust out identically.
+    function rng(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a = (a + 1831565813) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), 1 | t);
+        t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // Scale to `fit` radius and resample to exactly COUNT targets; pad with
+    // weight-0 points (those specks stay as dust and fade out).
+    function resample(pts, rand, fit) {
+      const k = fit / Math.max(...pts.map((p) => Math.hypot(p.x, p.y, p.z)));
+      const s = pts.map((p) => ({ ...p, x: p.x * k, y: p.y * k, z: p.z * k }));
+      const out = [];
+      if (s.length >= COUNT) for (let i = 0; i < COUNT; i++) out.push(s[Math.floor((i * s.length) / COUNT)]);
+      else for (out.push(...s); out.length < COUNT;) out.push({ ...s[Math.floor(rand() * s.length)], weight: 0 });
+      return out;
+    }
+
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    function start(canvas) {
+      const art = ARTS[canvas.dataset.art];
+      const offset = parseFloat(canvas.dataset.offset) || 0;
+      const ctx = canvas.getContext('2d');
+      const rand = rng(art.seed);
+      const extent = Math.max(...art.build(0.05).map((p) => Math.hypot(p.x, p.y, p.z)));
+      const targets = resample(art.build((0.034 * extent) / art.fit), rand, art.fit);
+      const atan = (x, y) => Math.atan2(y, x);
+
+      const dustPoint = () => {
+        const x = 1.08 * rand() - 0.04, y = 1.08 * rand() - 0.04;
+        const dx = 1.5 * (x - 0.5), dy = y - 0.5;
+        return { x, y, angle: atan(dx, dy), radius: Math.hypot(dx, dy) };
+      };
+      const A = Array.from({ length: COUNT }, () => {
+        const p = dustPoint();
+        return { ux: p.x, uy: p.y, ud: rand(), phase: rand() * Math.PI * 2, angle: p.angle, radius: p.radius };
+      });
+      const B = Array.from({ length: COUNT }, () => {
+        const p = dustPoint();
+        return { vx: p.x, vy: p.y, vd: rand(), phase2: rand() * Math.PI * 2, angle: p.angle };
+      });
+
+      // Pair the two dust layouts, and the shape targets, by angle around centre.
+      const orderA = A.map((_, i) => i).sort((i, j) => A[i].angle - A[j].angle);
+      const orderB = B.map((_, i) => i).sort((i, j) => B[i].angle - B[j].angle);
+      const pairB = new Array(COUNT);
+      orderB.forEach((b, rank) => { pairB[orderA[rank]] = B[b]; });
+
+      const live = targets.filter((p) => (p.weight ?? 1) > 0);
+      const restPose = (p) => rotZ(art.spin(0, p), art.tilt);
+      live.sort((p, q) => { const a = restPose(p), b = restPose(q); return atan(a.x, -a.y) - atan(b.x, -b.y); });
+      const assigned = new Array(COUNT).fill(null);
+      live.forEach((p, rank) => { assigned[orderA[Math.floor((rank * COUNT) / live.length)]] = p; });
+
+      const maxR = Math.hypot(0.81, 0.54);
+      const specks = A.map((p, i) => {
+        const b = pairB[i];
+        return {
+          ...p, vx: b.vx, vy: b.vy, vd: b.vd, phase2: b.phase2,
+          target: assigned[i] || { x: 0, y: 0, z: 0, weight: 0 },
+          delay: 0.7 * (1 - Math.min(1, p.radius / maxR)) + 0.3 * rand(),
+        };
+      });
+
+      let W = 0, H = 0, dpr = 1, running = false, lastT = 0;
+      const resize = () => {
+        const r = canvas.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = Math.max(1, Math.round(r.width * dpr));
+        H = Math.max(1, Math.round(r.height * dpr));
+        canvas.width = W; canvas.height = H;
+      };
+      const project = (p) => {
+        const q = rotX(p, 0.36), z = 3.6 - q.z, f = 1.25 * H;
+        return { x: W / 2 + (q.x * f) / z, y: H / 2 - (q.y * f) / z, s: f / z, z };
+      };
+      const phaseAt = (t) => {
+        const n = Math.floor(t / CYCLE), u = t - n * CYCLE;
+        const from = REST[art.rests[((n % 2) + 2) % 2]], to = REST[art.rests[(((n + 1) % 2) + 2) % 2]];
+        if (u < DUST_HOLD) return { rest: from, k: 0 };
+        if (u < DUST_HOLD + 2.4) return { rest: from, k: (u - DUST_HOLD) / 2.4 };
+        if (u < 8.2) return { rest: to, k: 1 };
+        return { rest: to, k: 1 - (u - DUST_HOLD - 2.4 - 4.6) / 2.2 };
+      };
+
+      const draw = (t) => {
+        lastT = t;
+        ctx.clearRect(0, 0, W, H);
+        const ph = reduced ? { rest: REST[art.rests[0]], k: 1 } : phaseAt(t);
+        const spinT = reduced ? 1.2 : t;
+        for (const s of specks) {
+          const e = easeInOutCubic(clamp01((ph.k - 0.5 * s.delay) / 0.5));
+          const w = s.target.weight ?? 1;
+          const d = w === 0 ? REST.dust(s, t) : ph.rest(s, t);
+          const dx = d.x * W, dy = d.y * H;
+          const dSize = (0.7 + 1 * d.depth) * dpr, dAlpha = 0.16 + 0.62 * d.depth;
+          let x, y, size, alpha;
+          if (w === 0) {
+            x = dx; y = dy; size = dSize; alpha = dAlpha * (1 - e);
+          } else {
+            const v = project(rotZ(art.spin(spinT, s.target), art.tilt));
+            const light = art.light || 0;
+            const bright = clamp01((5.2 - v.z + light) / 3.4);
+            const ps = v.s * (v.z / Math.max(0.8, v.z - 0.5 * light));
+            const tSize = Math.max(0.5, 1.05 * dpr * (ps / (0.36 * H)) * (0.65 + 0.35 * Math.min(w, 1.8)));
+            const tAlpha = (0.12 + 0.78 * bright) * Math.min(1.4, w);
+            const swirl = Math.sin(Math.PI * e), ox = v.x - dx, oy = v.y - dy;
+            x = dx + ox * e - oy * swirl * 0.22;
+            y = dy + oy * e + ox * swirl * 0.22;
+            size = dSize + (tSize - dSize) * e;
+            alpha = dAlpha + (tAlpha - dAlpha) * e;
+          }
+          ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha).toFixed(3)})`;
+          ctx.fillRect(x - size / 2, y - size / 2, size, size);
+        }
+      };
+
+      resize();
+      new ResizeObserver(() => { resize(); if (reduced || !running) draw(lastT); }).observe(canvas);
+
+      // Clock only advances while the canvas is visible.
+      let raf = 0, t0 = performance.now() - 1000 * offset, pausedAt = 0;
+      const tick = (now) => { raf = requestAnimationFrame(tick); draw((now - t0) / 1000); };
+      new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          if (running || reduced) return;
+          running = true;
+          if (pausedAt) t0 += performance.now() - pausedAt;
+          raf = requestAnimationFrame(tick);
+        } else if (running) {
+          running = false; pausedAt = performance.now(); cancelAnimationFrame(raf);
+        }
+      }).observe(canvas);
+      draw(offset);
+    }
+
+    document.querySelectorAll('canvas[data-art]').forEach(start);
+  })();
+  </script>
+</body>
+</html>

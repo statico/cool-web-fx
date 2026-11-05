@@ -25,6 +25,11 @@ const thumbsDir = join(publicDir, 'thumbs');
 
 const VIEWPORT = { width: 1200, height: 750 };
 const WARMUP_MS = 1800; // let the effect animate before capturing
+// Effects whose best frame isn't at the default warmup.
+const WARMUP_OVERRIDES = {
+  'starfall-particle-art': 6000, // all three models fully assembled
+  'rgbjoy-fluid-field': 450,     // opening swirl before it damps out
+};
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
@@ -77,7 +82,7 @@ async function main() {
   for (const slug of slugs) {
     const url = `http://localhost:${port}/effects/${slug}.html`;
     await page.goto(url, { waitUntil: 'load' });
-    await page.waitForTimeout(WARMUP_MS);
+    await page.waitForTimeout(WARMUP_OVERRIDES[slug] ?? WARMUP_MS);
     await page.screenshot({ path: join(thumbsDir, `${slug}.png`) });
     console.log(`✓ ${slug}.png`);
   }
