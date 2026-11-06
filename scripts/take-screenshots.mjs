@@ -30,6 +30,7 @@ const WARMUP_OVERRIDES = {
   'starfall-particle-art': 6000, // all three models fully assembled
   'rgbjoy-fluid-field': 450,     // opening swirl before it damps out
   'serval-life-coat': 600,       // let the default card's spots glow in
+  'codestorage-chrome-blob': 3500, // CDN three.js load + grow-in
 };
 
 const MIME = {

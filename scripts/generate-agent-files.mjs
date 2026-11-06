@@ -210,7 +210,7 @@ function indexMirror() {
     '',
     'Fetch the effect file, copy it verbatim into your project, and keep the credit',
     'to the site where it was first seen. Every effect is dependency-free except',
-    '`resend-cube`, which loads Three.js from a CDN via an import map.',
+    '`resend-cube` and `codestorage-chrome-blob`, which load Three.js from a CDN via an import map.',
     '',
     '## All effects',
     '',

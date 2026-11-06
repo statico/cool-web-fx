@@ -23,9 +23,9 @@ public/effects/<slug>.html
 
 That file is **self-contained**: a complete `<!doctype html>` document with inline
 `<style>` and `<script>`, no external fonts or images. It runs when opened directly
-in a browser. The one exception is `resend-cube`, which loads Three.js as a pinned
-ES module from a CDN via an `<script type="importmap">` (called out at the top of
-that file); every other effect makes no network calls at all.
+in a browser. The exceptions are `resend-cube` and `codestorage-chrome-blob`, which load Three.js
+as a pinned ES module from a CDN via an `<script type="importmap">` (`codestorage-chrome-blob` also fetches a Poly Haven HDRI; called out at
+the top of each file); every other effect makes no network calls at all.
 
 To embed one in your own page you can either:
 
@@ -59,6 +59,7 @@ any JavaScript.
 | `starfall-particle-art` | Three cards where 3,000 drifting white specks swirl together into a slowly turning DNA helix, a small molecule, and a diamond crystal lattice, hold the shape, then scatter back into dust. | https://www.spacex.com/starfall |
 | `rgbjoy-fluid-field` | A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles. | https://rgbjoy.com/ |
 | `serval-life-coat` | A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode. | https://www.serval.com/ |
+| `codestorage-chrome-blob` | A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do. | https://code.storage/ |
 <!-- a14y:end effects -->
 
 ## Attribution expectation

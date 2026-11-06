@@ -1,0 +1,232 @@
+<!doctype html>
+<!--
+  Code Storage — Chrome Blob
+  ─────────────────────────────────────────────────────────────────────────────
+  Port of the 3D "metaball" in the hero of https://code.storage/ (The Pierre
+  Computer Company), taken from the site's own JS bundle.
+
+    • Geometry: SphereGeometry(1.4, 64, 64). The uv attribute is deleted and
+      the vertices are merged, so the seam can't tear when it is displaced.
+    • Every frame each vertex is pushed along its own direction from the
+      centre by three octaves of n(x,y,z,t) = sin(2x+t)·cos(3y+.5t)·sin(1.5z+.8t):
+        0.30·n(.5p, .5t) + 0.15·n(1.2p, .8t) + 0.08·n(2p, 1.2t)
+      Then the normals are recomputed. The CPU does this work, not a shader.
+    • The mesh spins (+0.005 rad y, +0.002 rad x per frame) and grows in from
+      scale 0.01 at 1.6/s.
+    • Material: MeshPhysicalMaterial #f8f9fa, metalness .98, roughness .01,
+      clearcoat 1, transmission .1, ior 2.4. Roughness, metalness,
+      envMapIntensity (2 ± .5) and reflectivity drift slowly on sines.
+    • Lights: ambient .2 and a directional .8 at (10,10,5), plus an
+      environment map. The camera has fov 75 at z = 3, and dragging orbits it
+      (OrbitControls, no zoom or pan). While you drag, a Web Audio hum plays:
+      a triangle and a sine at 270/540 Hz that drop to 144/288, through a
+      lowpass, with 6 Hz vibrato.
+    • Behind the blob: an SVG with two dashed rings, a solid dot with a "+",
+      and a text ring that turns once every 60 s. (On the site the rings sit
+      19px below the blob; here they are concentric.)
+
+  Deviations:
+    • The site lights the blob with Poly Haven's empty_warehouse_01 HDR. On a
+      black page that reads too white, so this uses Poly Haven's darker
+      studio_small_03 HDRI (CC0) instead.
+    • On the site, scrolling morphs the blob into a voxel-quantised shape as
+      it travels down the page. That scroll choreography is not ported.
+    • Dark mode: white on black. The site's hero is black on white.
+
+  Needs Three.js, loaded as a pinned ES module from a CDN via the importmap,
+  and fetches the 1k HDRI (~1.6MB) from the Poly Haven CDN.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Storage — Chrome Blob</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do.">
+  <link rel="canonical" href="https://fx.statico.io/effects/codestorage-chrome-blob.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/codestorage-chrome-blob.md" title="Chrome Blob (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Chrome Blob">
+  <meta property="og:description" content="A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do.">
+  <meta property="og:url" content="https://fx.statico.io/effects/codestorage-chrome-blob.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Chrome Blob">
+  <meta name="twitter:description" content="A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/codestorage-chrome-blob.html#effect","name":"Chrome Blob","url":"https://fx.statico.io/effects/codestorage-chrome-blob.html","abstract":"A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do.","description":"A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://code.storage/","mainEntityOfPage":"https://fx.statico.io/demos/codestorage-chrome-blob","dateModified":"2026-11-06T23:06:11.312Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/codestorage-chrome-blob.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Chrome Blob","item":"https://fx.statico.io/demos/codestorage-chrome-blob"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/codestorage-chrome-blob.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://esm.sh/three@0.160.0",
+        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --bg: #000; --fg: #fff; --mono: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+    html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--mono); }
+    body { overflow: hidden; }
+    .stage { position: absolute; left: 50%; top: 50%; width: 600px; height: 600px; transform: translate(-50%, -50%) scale(var(--s, 1)); }
+    .rings { position: absolute; top: 76px; left: 50%; margin-left: -224px; width: 448px; height: 448px; }
+    .rings .spin { transform-origin: 224px 224px; animation: spin 60s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    canvas { position: absolute; inset: 0; width: 600px; height: 600px; z-index: 3; cursor: grab; touch-action: none; }
+    canvas:active { cursor: grabbing; }
+    .tag {
+      position: absolute; right: 80px; bottom: 20px; z-index: 4; padding: 0 10px; border-radius: 4px;
+      background: var(--fg); color: var(--bg); font-size: 10px; font-weight: bold; line-height: 18px;
+      pointer-events: none;
+    }
+    .tag::before {
+      content: ""; position: absolute; top: -10px; left: 20px;
+      border-right: 10px solid transparent; border-bottom: 10px solid var(--fg);
+    }
+    @media (prefers-reduced-motion: reduce) { .rings .spin { animation: none; } }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Chrome Blob</h1>
+    <p>A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do.</p>
+    <h2>How it works</h2>
+    <p>This ports the 3D "metaball" in the hero of code.storage. It is not a real metaball field. It is a single SphereGeometry(1.4, 64, 64) with the uv attribute deleted and the vertices merged, so the seam stays closed when it is pushed around.</p>
+    <p>Every frame, the CPU moves each vertex out along its own direction from the centre by three octaves of a cheap trig noise, n(p, t) = sin(2x + t)·cos(3y + 0.5t)·sin(1.5z + 0.8t). The sum is 0.30·n(0.5p, 0.5t) + 0.15·n(1.2p, 0.8t) + 0.08·n(2p, 1.2t). Then computeVertexNormals() rebuilds the shading. The big, slow octave gives the lumpy silhouette, and the two finer ones make the surface ripple.</p>
+    <p>The look is almost all material. It is a MeshPhysicalMaterial at metalness 0.98, roughness 0.01, clearcoat 1, transmission 0.1 and ior 2.4, lit mostly by an environment map with envMapIntensity 2. Roughness, metalness, env intensity and reflectivity each drift on their own slow sine, so the chrome seems to breathe. The mesh turns +0.005 rad on y and +0.002 rad on x each frame, and grows in from scale 0.01 on load. OrbitControls let you drag it around (no zoom or pan). While you drag, a small Web Audio hum plays: a triangle and a sine at 270/540 Hz that drop to 144/288 Hz, through a lowpass, with 6 Hz vibrato.</p>
+    <p>Behind it is plain SVG: two dashed rings, a solid dot with a "+", and a text ring that turns once every 60s.</p>
+    <p>The site uses Poly Haven's *empty_warehouse_01* HDR for reflections, which reads too white on a black page. This port loads Poly Haven's darker *studio_small_03* HDRI (CC0, 1k, about 1.6MB) from their CDN with RGBELoader, set as scene.environment with equirectangular reflection mapping. The site's scroll morph into a voxel shape is not ported. This port is also recoloured to dark mode (white on black), and the rings are centred on the blob. Three.js is pinned and loaded from a CDN via an importmap.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/codestorage-chrome-blob.md">https://fx.statico.io/effects/codestorage-chrome-blob.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/codestorage-chrome-blob">https://fx.statico.io/demos/codestorage-chrome-blob</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Code Storage (https://code.storage/) — credit to The Pierre Computer Company. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <div class="stage" id="stage">
+    <svg class="rings" viewBox="0 0 448 448" fill="none" aria-hidden="true">
+      <defs><path id="tc" d="M 224,224 m -210,0 a 210,210 0 1,1 420,0 a 210,210 0 1,1 -420,0"/></defs>
+      <g class="spin">
+        <text fill="currentColor" font-size="11" letter-spacing="3" font-family="ui-monospace, Menlo, monospace">
+          <textPath href="#tc">CODE STORAGE BY THE PIERRE COMPUTER COMPANY · CODE STORAGE BY THE PIERRE COMPUTER COMPANY · CODE STORAGE BY THE PIERRE COMPUTER COMPANY ·</textPath>
+        </text>
+      </g>
+      <circle cx="224" cy="224" r="158" stroke="currentColor" stroke-width="2" stroke-dasharray="2 2"/>
+      <circle cx="224" cy="224" r="95" stroke="currentColor" stroke-width="2" stroke-dasharray="2 2"/>
+      <circle cx="224" cy="224" r="37" fill="currentColor"/>
+      <rect x="223" y="214" width="2" height="20" fill="var(--bg)"/>
+      <rect x="214" y="223" width="20" height="2" fill="var(--bg)"/>
+    </svg>
+    <canvas id="blob" aria-label="A rotating chrome blob. Drag to spin it."></canvas>
+    <div class="tag">YOUR CODE IS A BLOB</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+    import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+
+    const fit = () => document.getElementById('stage').style.setProperty('--s', Math.min(1, innerWidth / 620, innerHeight / 620));
+    addEventListener('resize', fit); fit();
+
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canvas = document.getElementById('blob');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer.setSize(600, 600, false);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 100);
+    camera.position.set(0, 0, 3);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enablePan = false;
+    controls.enableZoom = false;
+
+    // Poly Haven HDRI (CC0), loaded straight from their CDN.
+    new RGBELoader().load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_03_1k.hdr', (t) => {
+      t.mapping = THREE.EquirectangularReflectionMapping;
+      scene.environment = t;
+    });
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(10, 10, 5);
+    scene.add(sun);
+
+    const sphere = new THREE.SphereGeometry(1.4, 64, 64);
+    sphere.deleteAttribute('uv');
+    const geo = mergeVertices(sphere);
+    const pos = geo.attributes.position;
+    const base = pos.array.slice();
+
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: '#f8f9fa', roughness: 0.01, metalness: 0.98, reflectivity: 0.95, envMapIntensity: 2,
+      clearcoat: 1, clearcoatRoughness: 0, transmission: 0.1, thickness: 0.5, ior: 2.4,
+      specularIntensity: 1, specularColor: '#ffffff',
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    const n = (x, y, z, t) => Math.sin(2 * x + t) * Math.cos(3 * y + 0.5 * t) * Math.sin(1.5 * z + 0.8 * t);
+
+    const clock = new THREE.Clock();
+    renderer.setAnimationLoop(() => {
+      const s = reduced ? 0 : clock.getElapsedTime();
+      mesh.scale.setScalar(reduced ? 1 : Math.min(0.01 + 1.6 * s, 1));
+      const a = pos.array;
+      for (let i = 0; i < a.length; i += 3) {
+        const x = base[i], y = base[i + 1], z = base[i + 2];
+        const f = 0.3 * n(0.5 * x, 0.5 * y, 0.5 * z, 0.5 * s)
+                + 0.15 * n(1.2 * x, 1.2 * y, 1.2 * z, 0.8 * s)
+                + 0.08 * n(2 * x, 2 * y, 2 * z, 1.2 * s);
+        const k = 1 + f / Math.hypot(x, y, z);
+        a[i] = x * k; a[i + 1] = y * k; a[i + 2] = z * k;
+      }
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+      if (!reduced) { mesh.rotation.y += 0.005; mesh.rotation.x += 0.002; }
+      mat.roughness = 0.01 + 0.005 * Math.sin(0.4 * s);
+      mat.metalness = 0.98 + 0.02 * Math.cos(0.3 * s);
+      mat.envMapIntensity = 2 + 0.5 * Math.sin(0.5 * s);
+      mat.reflectivity = 0.95 + 0.05 * Math.cos(0.2 * s);
+      controls.update();
+      renderer.render(scene, camera);
+    });
+
+    // Drag hum, as on the site: two detuned oscillators that drop in pitch, with vibrato.
+    let ac = null, hum = null;
+    controls.addEventListener('start', () => {
+      ac ??= new (window.AudioContext || window.webkitAudioContext)();
+      if (hum) return;
+      const t = ac.currentTime;
+      const o1 = ac.createOscillator(), o2 = ac.createOscillator(), lfo = ac.createOscillator();
+      const lp = ac.createBiquadFilter(), g = ac.createGain(), depth = ac.createGain();
+      o1.type = 'triangle'; o2.type = 'sine';
+      o1.frequency.setValueAtTime(270, t); o1.frequency.exponentialRampToValueAtTime(144, t + 0.1);
+      o2.frequency.setValueAtTime(540, t); o2.frequency.exponentialRampToValueAtTime(288, t + 0.1);
+      lp.type = 'lowpass'; lp.Q.value = 2;
+      lp.frequency.setValueAtTime(3000, t); lp.frequency.exponentialRampToValueAtTime(2000, t + 0.1);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.05); g.gain.setValueAtTime(0.1, t + 0.1);
+      lfo.frequency.value = 6; depth.gain.value = 8;
+      lfo.connect(depth); depth.connect(o1.frequency); depth.connect(o2.frequency);
+      o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(ac.destination);
+      for (const o of [o1, o2, lfo]) o.start(t);
+      hum = { o1, o2, lfo, g };
+    });
+    controls.addEventListener('end', () => {
+      if (!hum) return;
+      const { o1, o2, lfo, g } = hum, t = ac.currentTime;
+      o1.frequency.exponentialRampToValueAtTime(216, t + 0.1);
+      o2.frequency.exponentialRampToValueAtTime(432, t + 0.1);
+      g.gain.setValueAtTime(0.1, t); g.gain.linearRampToValueAtTime(0.06, t + 0.1); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      for (const o of [o1, o2, lfo]) o.stop(t + 0.25);
+      hum = null;
+    });
+  </script>
+</body>
+</html>

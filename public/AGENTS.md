@@ -42,8 +42,8 @@ thumbnail, or from memory.** The same source is also printed inside each demo
 page in a `<pre><code class="language-html">` block, so it can be scraped from
 the rendered HTML without executing any JavaScript.
 
-Every effect is dependency-free except `resend-cube`, which loads Three.js as a
-pinned ES module from a CDN via an `<script type="importmap">`. `terminal-starfield`
+Every effect is dependency-free except `resend-cube` and `codestorage-chrome-blob`,
+which load Three.js as a pinned ES module from a CDN via an `<script type="importmap">` (the blob also fetches a CC0 Poly Haven HDRI). `terminal-starfield`
 loads xterm.js and its fit addon from `/vendor/xterm/` (vendored, MIT).
 
 To embed one, either serve the whole file (or drop it in an `<iframe>`), or lift
