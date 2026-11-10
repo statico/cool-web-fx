@@ -8,8 +8,11 @@
   visibly spins. A blurred duplicate of the same gradient sits behind the pill as
   a glow that fades in on hover.
 
-  Source: extracted verbatim from resend.com/home (rainbow-border CSS). Colors,
-  timings and structure are the real ones.
+  Source: resend.com/home (rainbow-border CSS). Colours and structure are the
+  real ones. Deviation: Resend uses linear-gradient(var(--angle), …) over 30s,
+  which on a 1px rim is almost impossible to see move. This uses
+  conic-gradient(from var(--angle), …) over 4s so the colours visibly travel
+  around the pill.
 
   Completely standalone — no CDN, no web fonts, no external assets.
 -->
@@ -60,7 +63,7 @@
 
     /* The outer element IS the gradient ring. The inner <span> covers all but a
        1px rim, so only that rim of gradient shows. Both the ring and the glow
-       share the same 30s linear spin. */
+       share the same 4s linear spin. */
     .rainbow-border {
       position: relative;
       display: inline-flex;
@@ -69,9 +72,10 @@
       padding: 1px;                  /* thickness of the visible gradient rim */
       height: 32px;
       border-radius: 9999px;
-      background: linear-gradient(var(--angle), #02fcef70 0%, #ffb52b70 50%, #a02bfe70 100%);
-      animation: rotate 30s linear infinite;
+      background: conic-gradient(from var(--angle), #02fcef 0deg, #ffb52b 120deg, #a02bfe 240deg, #02fcef 360deg);
+      animation: rotate 4s linear infinite;
       cursor: pointer;
+      text-decoration: none;
     }
 
     /* Blurred glow: a brighter copy of the gradient, hidden until hover. */
@@ -81,12 +85,12 @@
       inset: 0;
       z-index: -1;
       border-radius: 9999px;
-      background: linear-gradient(var(--angle), #02fcef 0%, #ffb52b 50%, #a02bfe 100%);
+      background: conic-gradient(from var(--angle), #02fcef 0deg, #ffb52b 120deg, #a02bfe 240deg, #02fcef 360deg);
       filter: blur(20px);
       opacity: 0;
       transform: scale(0.95, 0.6);
       transition: all 0.3s ease-out;
-      animation: rotate 30s linear infinite;
+      animation: rotate 4s linear infinite;
     }
     .rainbow-border:hover::after { opacity: 0.9; transform: scaleX(1.1); }
 
@@ -117,10 +121,11 @@
     <h1>Rotating Rainbow Border Button</h1>
     <p>A pill button whose thin gradient outline spins forever, with a blurred glow that blooms on hover.</p>
     <h2>How it works</h2>
-    <p>This is the "Announcing Resend Forward" pill from Resend's hero, ported with the real CSS. The trick that makes a gradient *rotate* is a registered custom property:</p>
+    <p>This is the "Announcing Resend Forward" pill from Resend's hero, ported from the real CSS with one change (below). The trick that makes a gradient *rotate* is a registered custom property:</p>
     <p>@property --angle { syntax: "&lt;angle&gt;"; inherits: false; initial-value: 0deg; }</p>
-    <p>Registering --angle as an &lt;angle&gt; type makes it interpolatable, so a @keyframes rotate { to { --angle: 360deg } } can smoothly tween it. A plain CSS variable would jump from 0 to 360 with no in-between frames; the typed @property is what lets linear-gradient(var(--angle), …) visibly spin.</p>
-    <p>The outer element carries linear-gradient(var(--angle), #02fcef70 0%, #ffb52b70 50%, #a02bfe70 100%) (Resend's real cyan→amber→violet, at ~44% alpha) and a 1px padding; an inner &lt;span&gt; painted the page's background color (#0b0e14) covers everything but that 1px rim, so only a thin rotating outline shows. The animation runs 30s linear infinite.</p>
+    <p>Registering --angle as an &lt;angle&gt; type makes it interpolatable, so a @keyframes rotate { to { --angle: 360deg } } can smoothly tween it. A plain CSS variable would jump from 0 to 360 with no in-between frames; the typed @property is what lets the gradient visibly spin.</p>
+    <p>The outer element carries conic-gradient(from var(--angle), #02fcef, #ffb52b, #a02bfe, #02fcef) (Resend's cyan→amber→violet) and a 1px padding; an inner &lt;span&gt; painted the page's background color (#0b0e14) covers everything but that 1px rim, so only a thin rotating outline shows. The animation runs 4s linear infinite.</p>
+    <p>Deviation. Resend uses linear-gradient(var(--angle), …) at ~44% alpha over 30s. On a 1px rim around a wide pill, a turning linear gradient barely changes, so it looks static. A conic gradient sends the colours visibly around the pill, and 4s makes the motion obvious.</p>
     <p>A ::after pseudo-element holds a brighter, fully-opaque copy of the same rotating gradient with filter: blur(20px), sat behind the pill at opacity: 0. On :hover it fades to 0.9 and stretches (transform: scaleX(1.1)), blooming a soft glow; the face also darkens slightly. Both the rim and the glow share the same --angle keyframe so they stay in lockstep.</p>
     <h2>How to use this file</h2>
     <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/resend-rainbow-button.md">https://fx.statico.io/effects/resend-rainbow-button.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/resend-rainbow-button">https://fx.statico.io/demos/resend-rainbow-button</a>.</p>
