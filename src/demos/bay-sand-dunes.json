@@ -1,0 +1,10 @@
+{
+  "title": "Sand Dunes",
+  "slug": "bay-sand-dunes",
+  "order": 19,
+  "sourceUrl": "https://www.bay.io/",
+  "sourceName": "Bay",
+  "credit": "Bay",
+  "blurb": "Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.",
+  "technique": "On **bay.io** this hero is not code. It is a 10-second looping **1250×720 MP4** of striated sandstone dunes. This port rebuilds the look live in one WebGL fragment shader, so it has no video to load and renders sharp at any size.\n\n**Terrain.** The height is three slow travelling sines plus value noise. One sine is folded with `1 − |sin|` so the crests are sharp. A small `+0.16·z` term tilts the whole field up away from the camera, like looking across a slope, so the frame is all sand and no sky. The camera raymarches it (140 steps, step = 0.45 × height gap).\n\n**Strata.** The height is cut into 70 thin terraces with `fract(h · 70 + jitter)`. The jitter is a hash of the layer and a short x-segment (`floor(x · 22)`), so each contour breaks into dashed strands and the crests come out stair-stepped. The bottom of each terrace is darkened (the riser shadow) and the top gets a pale lip.\n\n**Colour and light.** Terracotta, cream and grey-brown bands come from slow noise keyed to position and height. A low warm key light comes from the left, with a little fill on surfaces that face the camera.\n\n**Lens.** A mild barrel distortion (`uv *= 1 + 0.08·|uv|²`), haze toward the far dunes that gets darker on the right like the render, and a vignette. The pointer nudges the camera for a little parallax. Self-contained: no external scripts, fonts, or images."
+}

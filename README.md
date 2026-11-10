@@ -36,6 +36,7 @@ independent recreation of the look. Credit always goes to the original site.
 | Chroma Fluid Field | A full-page GPU fluid sim drawn as tiny grid lines that turn rainbow by flow direction as your cursor stirs them. | [rgbjoy](https://rgbjoy.com/) |
 | Serval Life Coat | A halftone dot grid with hidden serval spots that glow purple behind the hovered card, in dark mode. | [Serval](https://www.serval.com/) |
 | Chrome Blob | A noise-displaced liquid-chrome sphere inside a rotating text ring; drag to spin it. | [Code Storage](https://code.storage/) |
+| Sand Dunes | Rolling sandstone dunes of fine stacked strands with a soft long-lens haze, raymarched live in one shader. | [Bay](https://www.bay.io/) |
 
 ## Develop
 

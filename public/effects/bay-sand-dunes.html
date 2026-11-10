@@ -1,0 +1,230 @@
+<!doctype html>
+<!--
+  Bay — Sand Dunes
+  ─────────────────────────────────────────────────────────────────────────────
+  Live recreation of the hero background on https://www.bay.io/ (Bay).
+
+  On the site this is not code: it is a 10 s looping 1250×720 MP4
+  (coverhome_mp4.mp4) of rolling, striated sandstone dunes. This file rebuilds
+  the look in one WebGL fragment shader so it renders live at any size:
+
+    • Terrain: a heightfield of three slow travelling sine ridges plus value
+      noise, sharpened into dune crests. Raymarched from a low camera looking
+      down into it, so the frame is all sand and no sky.
+    • Strata: the height is cut into ~70 thin terraces. Each terrace edge is
+      jittered per short x-segment, which gives the fine dashed, stacked-paper
+      strands and the stair-stepped edges along the crests.
+    • Colour: terracotta / cream / grey-brown bands keyed to a slow noise and
+      height, lit by a low warm key light from the left.
+    • Lens: slight barrel distortion, haze toward the far (top) dunes, and a
+      soft vignette, like the shallow, long-lens look of the render.
+    • The pointer nudges the camera a little for parallax.
+
+  Self-contained: no external scripts, fonts, or images.
+-->
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bay — Sand Dunes</title>
+  <!-- a14y:begin head — machine-readable metadata; safe to delete when copying -->
+  <meta name="description" content="Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.">
+  <link rel="canonical" href="https://fx.statico.io/effects/bay-sand-dunes.html">
+  <link rel="alternate" type="text/markdown" href="https://fx.statico.io/effects/bay-sand-dunes.md" title="Sand Dunes (Markdown)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="cool web fx">
+  <meta property="og:title" content="Sand Dunes">
+  <meta property="og:description" content="Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.">
+  <meta property="og:url" content="https://fx.statico.io/effects/bay-sand-dunes.html">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Sand Dunes">
+  <meta name="twitter:description" content="Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareSourceCode","@id":"https://fx.statico.io/effects/bay-sand-dunes.html#effect","name":"Sand Dunes","url":"https://fx.statico.io/effects/bay-sand-dunes.html","abstract":"Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.","description":"Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.","programmingLanguage":"HTML","codeSampleType":"full solution","runtimePlatform":"Web browser","codeRepository":"https://github.com/statico/cool-web-fx","license":"https://unlicense.org/","isBasedOn":"https://www.bay.io/","mainEntityOfPage":"https://fx.statico.io/demos/bay-sand-dunes","dateModified":"2026-11-10T18:22:02.300Z","inLanguage":"en"},{"@type":"BreadcrumbList","@id":"https://fx.statico.io/effects/bay-sand-dunes.html#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://fx.statico.io/"},{"@type":"ListItem","position":2,"name":"Sand Dunes","item":"https://fx.statico.io/demos/bay-sand-dunes"},{"@type":"ListItem","position":3,"name":"Standalone source","item":"https://fx.statico.io/effects/bay-sand-dunes.html"}]}]}</script>
+  <style>.a14y-doc{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+  <!-- a14y:end head -->
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; background: #f7f5f1; color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    body { padding: 24px; display: flex; }
+    .hero { position: relative; flex: 1; min-height: 480px; border-radius: 32px; overflow: hidden;
+      background: #3a2a22; display: grid; place-items: center; text-align: center; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .copy { position: relative; padding: 24px; display: grid; gap: 24px; justify-items: center;
+      text-shadow: 0 2px 24px rgba(40, 24, 16, .35); }
+    h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+    p { font-size: clamp(18px, 2.4vw, 28px); max-width: 22em; line-height: 1.3; }
+    a { color: #fff; background: #2a8f8c; padding: 14px 24px; border-radius: 8px; text-decoration: none;
+      font-size: 18px; text-shadow: none; }
+  </style>
+</head>
+<body>
+  <!-- a14y:begin body — visually hidden description; safe to delete when copying -->
+  <div class="a14y-doc">
+    <h1>Sand Dunes</h1>
+    <p>Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader.</p>
+    <h2>How it works</h2>
+    <p>On bay.io this hero is not code. It is a 10-second looping 1250×720 MP4 of striated sandstone dunes. This port rebuilds the look live in one WebGL fragment shader, so it has no video to load and renders sharp at any size.</p>
+    <p>Terrain. The height is three slow travelling sines plus value noise. One sine is folded with 1 − |sin| so the crests are sharp. A small +0.16·z term tilts the whole field up away from the camera, like looking across a slope, so the frame is all sand and no sky. The camera raymarches it (140 steps, step = 0.45 × height gap).</p>
+    <p>Strata. The height is cut into 70 thin terraces with fract(h · 70 + jitter). The jitter is a hash of the layer and a short x-segment (floor(x · 22)), so each contour breaks into dashed strands and the crests come out stair-stepped. The bottom of each terrace is darkened (the riser shadow) and the top gets a pale lip.</p>
+    <p>Colour and light. Terracotta, cream and grey-brown bands come from slow noise keyed to position and height. A low warm key light comes from the left, with a little fill on surfaces that face the camera.</p>
+    <p>Lens. A mild barrel distortion (uv *= 1 + 0.08·|uv|²), haze toward the far dunes that gets darker on the right like the render, and a vignette. The pointer nudges the camera for a little parallax. Self-contained: no external scripts, fonts, or images.</p>
+    <h2>How to use this file</h2>
+    <p>This is a complete, self-contained HTML document — copy it verbatim rather than reconstructing it. Markdown version: <a href="https://fx.statico.io/effects/bay-sand-dunes.md">https://fx.statico.io/effects/bay-sand-dunes.md</a>. Full writeup and live preview: <a href="https://fx.statico.io/demos/bay-sand-dunes">https://fx.statico.io/demos/bay-sand-dunes</a>.</p>
+    <h2>Source and credit</h2>
+    <p>Effect originally seen on Bay (https://www.bay.io/) — credit to Bay. This is an independent recreation built from scratch for educational use; no proprietary source code was copied. Released under the Unlicense.</p>
+    <h2>More</h2>
+    <p>Terms used above are defined in the <a href="https://fx.statico.io/glossary">glossary</a>. See also the <a href="https://fx.statico.io/sitemap.md">site map</a>, <a href="https://fx.statico.io/AGENTS.md">AGENTS.md</a> and <a href="https://fx.statico.io/llms.txt">llms.txt</a>.</p>
+  </div>
+  <!-- a14y:end body -->
+  <section class="hero">
+    <canvas id="c"></canvas>
+    <div class="copy">
+      <h1>Shifting sands</h1>
+      <p>A slow, layered landscape rendered live in a single shader.</p>
+      <a href="#">Get started</a>
+    </div>
+  </section>
+
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+
+const VS = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0., 1.); }`;
+const FS = `
+precision highp float;
+uniform vec2 R; uniform float T; uniform vec2 M;
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3. - 2.*f);
+  return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+}
+
+// Big rolling dunes. Crests are sharpened by folding sin into a ridge.
+float dunes(vec2 q){
+  vec2 p = q * 1.7;
+  float t = T * .18;
+  float h = .55 * (1. - abs(sin(p.x*.55 + p.y*.30 + t)));
+  h += .35 * sin(p.x*.32 - p.y*.55 - t*.7);
+  h += .18 * sin(p.x*1.1 + p.y*.8 + t*1.3);
+  h += .45 * vnoise(p*.35 + vec2(t*.15, 0.));
+  return h * .9 + q.y * .16;   // slope rising away from camera fills the frame
+}
+
+const float LAYERS = 70.;
+
+// Terrace jitter: each short x-segment of each layer gets its own offset,
+// which turns contour lines into dashed, stair-stepped strands.
+float jitter(vec2 p, float h){
+  float layer = floor(h * LAYERS);
+  return hash(vec2(floor(p.x * 22. + layer * 3.1), layer)) * .55;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy - .5*R) / R.y;
+  // Lens: mild barrel distortion.
+  uv *= 1. + .08 * dot(uv, uv);
+
+  vec3 ro = vec3(M.x * .6, 1.9 + M.y * .3, 0.);
+  float pitch = -.3;
+  vec3 fw = normalize(vec3(.12, sin(pitch), cos(pitch)));
+  vec3 rt = normalize(cross(vec3(0,1,0), fw));
+  vec3 up = cross(fw, rt);
+  vec3 rd = normalize(fw + uv.x*rt*.9 + uv.y*up*.9);
+
+  float t = .5; float hit = 0.;
+  for (int i = 0; i < 140; i++) {
+    vec3 p = ro + rd*t;
+    float d = p.y - dunes(p.xz);
+    if (d < .002*t) { hit = 1.; break; }
+    t += d * .45;
+    if (t > 45.) break;
+  }
+  vec3 p = ro + rd*t;
+  float h = dunes(p.xz);
+
+  // Smooth normal for broad light.
+  vec2 e = vec2(.02, 0.);
+  vec3 n = normalize(vec3(dunes(p.xz - e.xy) - dunes(p.xz + e.xy), 2.*e.x, dunes(p.xz - e.yx) - dunes(p.xz + e.yx)));
+
+  // Strata: position within the current terrace (0 = edge, 1 = top of layer).
+  float s = fract(h * LAYERS + jitter(p.xz, h));
+  float edge = smoothstep(0., .28, s);          // dark riser under each strand
+  float lip  = smoothstep(.7, 1., s) * .6;     // pale lip on top of each strand
+
+  // Palette.
+  vec3 terra = vec3(.58, .40, .34);
+  vec3 cream = vec3(.86, .81, .77);
+  vec3 grey  = vec3(.48, .42, .40);
+  float band = vnoise(p.xz * vec2(.25, .5) + h * 1.6 + T*.02);
+  vec3 col = mix(terra, cream, smoothstep(.35, .75, band));
+  col = mix(col, grey, smoothstep(.55, .95, vnoise(p.xz*.18 + 7.)) * .7);
+
+  vec3 L = normalize(vec3(-.7, .55, .25));
+  float dif = clamp(dot(n, L), 0., 1.);
+  float facing = clamp(dot(n, -rd), 0., 1.);
+  vec3 light = vec3(1., .93, .86) * (.12 + 1.0*dif) + vec3(.18, .14, .14) * facing;
+  col *= light;
+  col *= mix(.62, 1., edge);
+  col += lip * dif * vec3(.25, .22, .2);
+
+  // Haze toward the far dunes, darker on the right like the render.
+  vec3 haze = mix(vec3(.30, .22, .19), vec3(.16, .13, .13), smoothstep(-.3, .9, uv.x));
+  col = mix(col, haze, hit > .5 ? smoothstep(4., 30., t) * .75 : 1.);
+
+  // Vignette + gentle filmic tone.
+  col *= 1. - .45 * dot(uv*.8, uv*.8);
+  col = pow(col, vec3(.95));
+  gl_FragColor = vec4(col, 1.);
+}`;
+
+function sh(type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const uR = gl.getUniformLocation(prog, 'R'), uT = gl.getUniformLocation(prog, 'T'), uM = gl.getUniformLocation(prog, 'M');
+
+// Render at ≤1.25× CSS pixels: the raymarch is the expensive part.
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+  canvas.width = Math.round(canvas.clientWidth * dpr);
+  canvas.height = Math.round(canvas.clientHeight * dpr);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  if (reduce) requestAnimationFrame(frame);
+}
+new ResizeObserver(resize).observe(canvas);
+
+const target = { x: 0, y: 0 }, mouse = { x: 0, y: 0 };
+window.addEventListener('pointermove', (e) => {
+  target.x = e.clientX / innerWidth - .5;
+  target.y = e.clientY / innerHeight - .5;
+});
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const t0 = performance.now();
+function frame(now){
+  mouse.x += (target.x - mouse.x) * .04;
+  mouse.y += (target.y - mouse.y) * .04;
+  gl.uniform2f(uR, canvas.width, canvas.height);
+  gl.uniform1f(uT, reduce ? 8 : (now - t0) / 1000 + 8);
+  gl.uniform2f(uM, mouse.x, mouse.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  if (!reduce) requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

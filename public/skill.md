@@ -60,6 +60,7 @@ any JavaScript.
 | `rgbjoy-fluid-field` | A full-page GPU fluid simulation drawn as a grid of tiny line segments. Your cursor stirs it, and each segment turns a rainbow colour keyed to the direction it flows, then fades back to grey dots as the fluid settles. | https://rgbjoy.com/ |
 | `serval-life-coat` | A halftone grid of tiny square dots with a serval's coat of spots hidden in it. The spots behind the active card light up purple and breathe, and a diagonal sparkle wave sweeps across the dots. Adapted for dark mode. | https://www.serval.com/ |
 | `codestorage-chrome-blob` | A liquid-chrome blob that wobbles and slowly turns inside a ring of rotating mono text. Drag it to spin it, and it hums while you do. | https://code.storage/ |
+| `bay-sand-dunes` | Slow rolling sandstone dunes made of thousands of fine stacked strands, with stair-stepped crests, warm terracotta and cream strata, and a soft long-lens haze. Rendered live in one shader. | https://www.bay.io/ |
 <!-- a14y:end effects -->
 
 ## Attribution expectation
